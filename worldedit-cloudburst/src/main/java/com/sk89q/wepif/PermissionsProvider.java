@@ -19,7 +19,8 @@
 
 package com.sk89q.wepif;
 
-import org.bukkit.OfflinePlayer;
+
+import org.cloudburstmc.server.player.OfflinePlayer;
 
 public interface PermissionsProvider {
     boolean hasPermission(String name, String permission);

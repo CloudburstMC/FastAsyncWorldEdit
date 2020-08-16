@@ -25,11 +25,10 @@ import com.boydti.fawe.config.Caption;
 import com.boydti.fawe.config.Settings;
 import com.boydti.fawe.object.RunnableVal;
 import com.boydti.fawe.util.TaskManager;
-import com.sk89q.util.StringUtil;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItemStack;
-import com.sk89q.worldedit.cloudburst.adapter.BukkitImplAdapter;
+import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.extension.platform.AbstractPlayerActor;
 import com.sk89q.worldedit.extent.Extent;
@@ -57,10 +56,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Item;
-import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.cloudburstmc.server.player.Player;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
@@ -218,7 +217,7 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public BlockBag getInventoryBlockBag() {
-        return new BukkitPlayerBlockBag(player);
+        return new CloudburstPlayerBlockBag(player);
     }
 
     @Override
@@ -262,12 +261,12 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public void dispatchCUIEvent(CUIEvent event) {
-        String[] params = event.getParameters();
-        String send = event.getTypeId();
-        if (params.length > 0) {
-            send = send + "|" + StringUtil.joinString(params, "|");
-        }
-        player.sendPluginMessage(plugin, WorldEditPlugin.CUI_PLUGIN_CHANNEL, send.getBytes(CUIChannelListener.UTF_8_CHARSET));
+//        String[] params = event.getParameters();
+//        String send = event.getTypeId();
+//        if (params.length > 0) {
+//            send = send + "|" + StringUtil.joinString(params, "|");
+//        }
+//        player.sendPluginMessage(plugin, WorldEditPlugin.CUI_PLUGIN_CHANNEL, send.getBytes(CUIChannelListener.UTF_8_CHARSET));
     }
 
     public Player getPlayer() {
@@ -376,7 +375,7 @@ public class CloudburstPlayer extends AbstractPlayerActor {
         } else {
             player.sendBlockChange(loc, CloudburstAdapter.adapt(block));
             if (block instanceof BaseBlock && ((BaseBlock) block).hasNbtData()) {
-                BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
+                CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
                 if (adapter != null) {
                     if (block.getBlockType() == BlockTypes.STRUCTURE_BLOCK) {
                         adapter.sendFakeNBT(player, pos, ((BaseBlock) block).getNbtData());

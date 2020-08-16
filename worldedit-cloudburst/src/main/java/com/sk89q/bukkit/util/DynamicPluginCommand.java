@@ -20,31 +20,34 @@
 package com.sk89q.bukkit.util;
 
 import com.sk89q.minecraft.util.commands.CommandsManager;
-import com.sk89q.util.StringUtil;
 import com.sk89q.wepif.PermissionsResolverManager;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
-import org.bukkit.command.PluginIdentifiableCommand;
-import org.bukkit.command.TabCompleter;
-import org.bukkit.plugin.Plugin;
+import org.cloudburstmc.server.command.Command;
+import org.cloudburstmc.server.command.CommandExecutor;
+import org.cloudburstmc.server.command.CommandSender;
+import org.cloudburstmc.server.command.PluginCommand;
+import org.cloudburstmc.server.command.data.CommandData;
+import org.cloudburstmc.server.player.OfflinePlayer;
+import org.cloudburstmc.server.plugin.Plugin;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
-* An implementation of a dynamically registered {@link org.bukkit.command.Command} attached to a plugin.
-*/
+ * An implementation of a dynamically registered {@link Command} attached to a plugin.
+ */
 @SuppressWarnings("deprecation")
-public class DynamicPluginCommand extends org.bukkit.command.Command implements PluginIdentifiableCommand {
+public class DynamicPluginCommand extends PluginCommand<Plugin> {
 
     protected final CommandExecutor owner;
     protected final Object registeredWith;
     protected final Plugin owningPlugin;
-    protected String[] permissions = new String[0];
 
-    public DynamicPluginCommand(String[] aliases, String desc, String usage, CommandExecutor owner, Object registeredWith, Plugin plugin) {
-        super(aliases[0], desc, usage, Arrays.asList(aliases));
+    public DynamicPluginCommand(String[] aliases, String[] permissions, String desc, String usage, CommandExecutor owner, Object registeredWith, Plugin plugin) {
+        super(plugin, CommandData.builder(aliases[0])
+                .setDescription(desc)
+                .setUsageMessage(usage)
+                .setAliases(aliases)
+                .setPermissions(permissions)
+                .build());
         this.owner = owner;
         this.owningPlugin = plugin;
         this.registeredWith = registeredWith;
@@ -63,35 +66,16 @@ public class DynamicPluginCommand extends org.bukkit.command.Command implements 
         return registeredWith;
     }
 
-    public void setPermissions(String[] permissions) {
-        this.permissions = permissions;
-        if (permissions != null) {
-            super.setPermission(StringUtil.joinString(permissions, ";"));
-        }
-    }
-
-    public String[] getPermissions() {
-        return permissions;
-    }
-
     @Override
     public Plugin getPlugin() {
         return owningPlugin;
     }
 
-    @Override
-    public List<String> tabComplete(CommandSender sender, String alias, String[] args) throws IllegalArgumentException {
-        if (registeredWith instanceof CommandInspector) {
-            return ((TabCompleter) owner).onTabComplete(sender, this, alias, args);
-        } else {
-            return super.tabComplete(sender, alias, args);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     @Override
     public boolean testPermissionSilent(CommandSender sender) {
-        if (permissions == null || permissions.length == 0) {
+        List<String> permissions = getPermissions();
+        if (permissions == null || permissions.size() == 0) {
             return true;
         }
 

@@ -155,7 +155,7 @@ public class BukkitImplLoader {
      * @return an adapter
      * @throws AdapterLoadException thrown if no adapter could be found
      */
-    public BukkitImplAdapter loadAdapter() throws AdapterLoadException {
+    public CloudburstImplAdapter loadAdapter() throws AdapterLoadException {
         for (String className : adapterCandidates) {
             log.debug("Candidate: " + className);
             try {
@@ -166,9 +166,9 @@ public class BukkitImplLoader {
                 } else {
                     log.debug(className + " is not synthetic");
                 }
-                if (BukkitImplAdapter.class.isAssignableFrom(cls)) {
+                if (CloudburstImplAdapter.class.isAssignableFrom(cls)) {
                     log.debug(className + " is assignable from BukkitImplAdapter, returning");
-                    return (BukkitImplAdapter) cls.newInstance();
+                    return (CloudburstImplAdapter) cls.newInstance();
                 } else {
                     log.error(className + " is NOT assignable from BukkitImplAdapter, returning");
                 }

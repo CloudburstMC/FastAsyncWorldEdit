@@ -2,7 +2,7 @@ package com.boydti.fawe.cloudburst.adapter;
 
 import com.boydti.fawe.beta.implementation.packet.ChunkPacket;
 import com.sk89q.jnbt.CompoundTag;
-import com.sk89q.worldedit.cloudburst.adapter.BukkitImplAdapter;
+import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.math.BlockVector3;
 
 import java.lang.reflect.Field;
@@ -20,7 +20,7 @@ public abstract class MapChunkUtil<T> {
 
     public abstract T createPacket();
 
-    public T create(BukkitImplAdapter adapter, ChunkPacket packet) {
+    public T create(CloudburstImplAdapter adapter, ChunkPacket packet) {
         try {
             T nmsPacket;
             int bitMask = packet.getChunk().getBitMask();

@@ -69,7 +69,7 @@ public class AsyncBlockState implements BlockState {
     }
 
     @Override
-    public AsyncWorld getWorld() {
+    public AsyncLevel getWorld() {
         return block.world;
     }
 

@@ -7,17 +7,16 @@ import com.boydti.fawe.beta.implementation.blocks.CharBlocks;
 import com.boydti.fawe.beta.implementation.blocks.CharGetBlocks;
 import com.boydti.fawe.beta.implementation.queue.QueueHandler;
 import com.boydti.fawe.cloudburst.adapter.mc1161.BukkitAdapter1161;
-import com.boydti.fawe.cloudburst.adapter.mc1161.BukkitGetBlocks1161;
-import com.boydti.fawe.cloudburst.adapter.mc1161.nbt.LazyCompoundTag1161;
 import com.boydti.fawe.config.Settings;
 import com.boydti.fawe.object.collection.AdaptedMap;
 import com.boydti.fawe.object.collection.BitArrayUnstretched;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterables;
+import com.nukkitx.math.vector.Vector3i;
+import com.nukkitx.nbt.NbtMap;
+import com.nukkitx.nbt.NbtMapBuilder;
 import com.sk89q.jnbt.*;
 import com.sk89q.worldedit.cloudburst.CloudburstAdapter;
-import com.sk89q.worldedit.cloudburst.WorldEditPlugin;
-import com.sk89q.worldedit.cloudburst.adapter.BukkitImplAdapter;
 import com.sk89q.worldedit.cloudburst.adapter.impl.FAWESpigotV116R1;
 import com.sk89q.worldedit.internal.Constants;
 import com.sk89q.worldedit.math.BlockVector3;
@@ -25,13 +24,18 @@ import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.BlockTypes;
 import org.cloudburstmc.server.blockentity.BlockEntity;
 import org.cloudburstmc.server.entity.Entity;
+import org.cloudburstmc.server.entity.EntityType;
 import org.cloudburstmc.server.level.Level;
+import org.cloudburstmc.server.level.Location;
 import org.cloudburstmc.server.level.biome.Biome;
 import org.cloudburstmc.server.level.chunk.Chunk;
 import org.cloudburstmc.server.level.chunk.ChunkSection;
 import org.cloudburstmc.server.registry.BiomeRegistry;
+import org.cloudburstmc.server.registry.EntityRegistry;
+import org.cloudburstmc.server.utils.Identifier;
 import org.cloudburstmc.server.utils.NibbleArray;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,15 +43,19 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.function.Function;
-
-import static org.slf4j.LoggerFactory.getLogger;
+import java.util.stream.Collectors;
 
 public class CloudburstGetBlocks extends CharGetBlocks {
 
-    private static final Logger log = LoggerFactory.getLogger(BukkitGetBlocks1161.class);
+    private static final Logger log = LoggerFactory.getLogger(CloudburstGetBlocks.class);
 
-    private static final Function<BlockPosition, BlockVector3> posNms2We = v -> BlockVector3.at(v.getX(), v.getY(), v.getZ());
-    private static final Function<TileEntity, CompoundTag> nmsTile2We = tileEntity -> new LazyCompoundTag1161(Suppliers.memoize(() -> tileEntity.save(new NBTTagCompound())));
+    private static final Function<Vector3i, BlockVector3> posNms2We = v -> BlockVector3.at(v.getX(), v.getY(), v.getZ());
+    private static final Function<BlockEntity, CompoundTag> nmsTile2We = tileEntity -> new LazyCompoundTag(Suppliers.memoize(() -> {
+        NbtMapBuilder builder = NbtMap.builder();
+        tileEntity.saveAdditionalData(builder);
+
+        return builder.build();
+    }));
     public ChunkSection[] sections;
     public Chunk cloudChunk;
     public Level world;
@@ -87,7 +95,8 @@ public class CloudburstGetBlocks extends CharGetBlocks {
 
     @Override
     public Map<BlockVector3, CompoundTag> getTiles() {
-        Map<BlockPosition, TileEntity> nmsTiles = this.getChunk().getTileEntities();
+        Map<Vector3i, BlockEntity> nmsTiles = this.getChunk().getBlockEntities().stream()
+                .collect(Collectors.toMap(BlockEntity::getPosition, be -> be));
         if (nmsTiles.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -160,7 +169,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 for (List<Entity> slice : slices) {
                     if (slice != null) {
                         for (Entity entity : slice) {
-                            UUID uuid = entity.getUniqueID();
+                            UUID uuid = entity.getUniqueId();
                             if (uuid.equals(getUUID)) {
                                 return true;
                             }
@@ -177,9 +186,11 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     @Nullable
                     @Override
                     public CompoundTag apply(@Nullable Entity input) {
-                        BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getBukkitImplAdapter();
-                        NBTTagCompound tag = new NBTTagCompound();
-                        return (CompoundTag) adapter.toNative(input.save(tag));
+                        NbtMapBuilder builder = NbtMap.builder();
+
+                        input.saveAdditionalData(builder);
+
+                        return (CompoundTag) CloudburstAdapter.adapt(builder.build());
                     }
                 });
                 return result.iterator();
@@ -187,7 +198,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
         };
     }
 
-    private void updateGet(BukkitGetBlocks1161 get, Chunk nmsChunk, ChunkSection[] sections, ChunkSection section, char[] arr, int layer) {
+    private void updateGet(CloudburstGetBlocks get, Chunk nmsChunk, ChunkSection[] sections, ChunkSection section, char[] arr, int layer) {
         synchronized (get) {
             if (this.cloudChunk != nmsChunk) {
                 this.cloudChunk = nmsChunk;
@@ -205,8 +216,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
     }
 
     private void removeEntity(Entity entity) {
-        entity.die();
-        entity.valid = false;
+        entity.close();
     }
 
     public Chunk ensureLoaded(int chunkX, int chunkZ) {
@@ -216,17 +226,17 @@ public class CloudburstGetBlocks extends CharGetBlocks {
     @Override
     public <T extends Future<T>> T call(IChunkSet set, Runnable finalizer) {
         try {
-            WorldServer nmsWorld = world;
+            Level nmsWorld = world;
             Chunk nmsChunk = this.ensureLoaded(chunkX, chunkZ);
             boolean fastmode = set.isFastMode() && Settings.IMP.QUEUE.NO_TICK_FASTMODE;
 
             // Remove existing tiles
             {
                 // Create a copy so that we can remove blocks
-                Map<BlockPosition, TileEntity> tiles = new HashMap<>(nmsChunk.getTileEntities());
+                Map<Vector3i, BlockEntity> tiles = new HashMap<>(nmsChunk.getBlockEntities());
                 if (!tiles.isEmpty()) {
-                    for (Map.Entry<BlockPosition, TileEntity> entry : tiles.entrySet()) {
-                        final BlockPosition pos = entry.getKey();
+                    for (Map.Entry<Vector3i, BlockEntity> entry : tiles.entrySet()) {
+                        final Vector3i pos = entry.getKey();
                         final int lx = pos.getX() & 15;
                         final int ly = pos.getY();
                         final int lz = pos.getZ() & 15;
@@ -237,8 +247,8 @@ public class CloudburstGetBlocks extends CharGetBlocks {
 
                         int ordinal = set.getBlock(lx, ly, lz).getOrdinal();
                         if (ordinal != 0) {
-                            TileEntity tile = entry.getValue();
-                            nmsChunk.removeTileEntity(tile.getPosition());
+                            BlockEntity tile = entry.getValue();
+                            nmsChunk.removeBlockEntity(tile);
                         }
                     }
                 }
@@ -259,8 +269,8 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     ChunkSection newSection;
                     ChunkSection existingSection = sections[layer];
                     if (existingSection == null) {
-                        newSection = BukkitAdapter1161.newChunkSection(layer, setArr, fastmode);
-                        if (BukkitAdapter1161.setSectionAtomic(sections, null, newSection, layer)) {
+                        newSection = CloudburstAdapter.newChunkSection(layer, setArr, fastmode);
+                        if (CloudburstAdapter.setSectionAtomic(sections, null, newSection, layer)) {
                             this.updateGet(this, nmsChunk, sections, newSection, setArr, layer);
                             continue;
                         } else {
@@ -381,40 +391,44 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     }
 
                     syncTasks[1] = () -> {
+                        EntityRegistry registry = EntityRegistry.get();
                         for (final CompoundTag nativeTag : entities) {
                             final Map<String, Tag> entityTagMap = nativeTag.getValue();
                             final StringTag idTag = (StringTag) entityTagMap.get("Id");
                             final ListTag posTag = (ListTag) entityTagMap.get("Pos");
                             final ListTag rotTag = (ListTag) entityTagMap.get("Rotation");
                             if (idTag == null || posTag == null || rotTag == null) {
-                                getLogger(
-                                        BukkitGetBlocks1161.class).debug("Unknown entity tag: " + nativeTag);
+                                log.debug("Unknown entity tag: " + nativeTag);
                                 continue;
                             }
-                            final double x = posTag.getDouble(0);
-                            final double y = posTag.getDouble(1);
-                            final double z = posTag.getDouble(2);
+                            final float x = posTag.getFloat(0);
+                            final float y = posTag.getFloat(1);
+                            final float z = posTag.getFloat(2);
                             final float yaw = rotTag.getFloat(0);
                             final float pitch = rotTag.getFloat(1);
                             final String id = idTag.getValue();
 
-                            EntityTypes<?> type = EntityTypes.a(id).orElse(null);
+                            EntityType<?> type = registry.getEntityType(Identifier.fromString(id));
                             if (type != null) {
-                                Entity entity = type.a(nmsWorld);
+                                Entity entity = registry.newEntity(type, Location.from(
+                                        x,
+                                        y,
+                                        z,
+                                        yaw,
+                                        pitch,
+                                        nmsWorld
+                                ));
                                 if (entity != null) {
                                     UUID uuid = entity.getUniqueID();
                                     entityTagMap.put("UUIDMost", new LongTag(uuid.getMostSignificantBits()));
                                     entityTagMap.put("UUIDLeast", new LongTag(uuid.getLeastSignificantBits()));
-                                    if (nativeTag != null) {
-                                        BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getBukkitImplAdapter();
-                                        final NBTTagCompound tag = (NBTTagCompound) adapter.fromNative(nativeTag);
-                                        for (final String name : Constants.NO_COPY_ENTITY_NBT_FIELDS) {
-                                            tag.remove(name);
-                                        }
-                                        entity.save(tag);
+
+                                    final NbtMapBuilder tag = CloudburstAdapter.adapt(nativeTag).toBuilder();
+                                    for (final String name : Constants.NO_COPY_ENTITY_NBT_FIELDS) {
+                                        tag.remove(name);
                                     }
-                                    entity.setLocation(x, y, z, yaw, pitch);
-                                    nmsWorld.addEntity(entity, CreatureSpawnEvent.SpawnReason.CUSTOM);
+
+                                    entity.loadAdditionalData(tag.build());
                                 }
                             }
                         }
@@ -436,21 +450,17 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                             final int x = blockHash.getX() + bx;
                             final int y = blockHash.getY();
                             final int z = blockHash.getZ() + bz;
-                            final BlockPosition pos = new BlockPosition(x, y, z);
+                            final Vector3i pos = Vector3i.from(x, y, z);
 
                             synchronized (nmsWorld) {
-                                TileEntity tileEntity = nmsWorld.getTileEntity(pos);
-                                if (tileEntity == null || tileEntity.isRemoved()) {
-                                    nmsWorld.removeTileEntity(pos);
-                                    tileEntity = nmsWorld.getTileEntity(pos);
+                                BlockEntity tileEntity = nmsWorld.getBlockEntity(pos);
+                                if (tileEntity != null && tileEntity.isClosed()) {
+                                    nmsWorld.removeBlockEntity(tileEntity);
+                                    tileEntity = nmsWorld.getBlockEntity(pos);
                                 }
                                 if (tileEntity != null) {
-                                    BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getBukkitImplAdapter();
-                                    final NBTTagCompound tag = (NBTTagCompound) adapter.fromNative(nativeTag);
-                                    tag.set("x", NBTTagInt.a(x));
-                                    tag.set("y", NBTTagInt.a(y));
-                                    tag.set("z", NBTTagInt.a(z));
-                                    tileEntity.load(tileEntity.getBlock(), tag);
+                                    final NbtMap tag = CloudburstAdapter.adapt(nativeTag);
+                                    tileEntity.loadAdditionalData(tag);
                                 }
                             }
                         }
@@ -538,8 +548,6 @@ public class CloudburstGetBlocks extends CharGetBlocks {
             lock.setModified(false);
             // Efficiently convert ChunkSection to raw data
             try {
-                FAWESpigotV116R1 adapter = ((FAWESpigotV116R1) WorldEditPlugin.getInstance().getBukkitImplAdapter());
-
                 final DataPaletteBlock<IBlockData> blocks = section.getBlocks();
                 final DataBits bits = (DataBits) BukkitAdapter1161.fieldBits.get(blocks);
                 final DataPalette<IBlockData> palette = (DataPalette<IBlockData>) BukkitAdapter1161.fieldPalette.get(blocks);

@@ -4,10 +4,10 @@ import com.boydti.fawe.Fawe;
 import com.boydti.fawe.config.Settings;
 import com.boydti.fawe.util.FaweTimer;
 import com.boydti.fawe.util.MathMan;
-import org.bukkit.block.Block;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.block.BlockPhysicsEvent;
+import org.cloudburstmc.server.block.Block;
+import org.cloudburstmc.server.event.EventHandler;
+import org.cloudburstmc.server.event.EventPriority;
+import org.cloudburstmc.server.event.block.BlockUpdateEvent;
 
 public class ChunkListener9 extends ChunkListener {
 
@@ -20,7 +20,7 @@ public class ChunkListener9 extends ChunkListener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     @Override
-    public void onPhysics(BlockPhysicsEvent event) {
+    public void onPhysics(BlockUpdateEvent event) {
         if (physicsFreeze) {
             event.setCancelled(true);
             return;
@@ -59,7 +59,7 @@ public class ChunkListener9 extends ChunkListener {
                 physCancelPair = MathMan.pairInt(cx, cz);
                 if (rateLimit <= 0) {
                     rateLimit = 20;
-                    lastCancelPos = block.getLocation();
+                    lastCancelPos = block.getPosition();
                 }
                 cancelNearby(cx, cz);
                 event.setCancelled(true);

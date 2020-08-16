@@ -1,4 +1,4 @@
-package com.boydti.fawe.bukkit.listener;
+package com.boydti.fawe.cloudburst.listener;
 
 import com.boydti.fawe.object.brush.MovableTool;
 import com.boydti.fawe.object.brush.ResettableTool;
@@ -52,7 +52,7 @@ public class BrushListener implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         Location from = event.getFrom();
         Location to = event.getTo();
-        if ((from.getYaw() != to.getYaw() &&  from.getPitch() != to.getPitch()) || from.getFloorX() != to.getFloorX() || from.getFloorZ() != to.getFloorZ() || from.getFloorY() != to.getFloorY()) {
+        if ((from.getYaw() != to.getYaw() && from.getPitch() != to.getPitch()) || from.getFloorX() != to.getFloorX() || from.getFloorZ() != to.getFloorZ() || from.getFloorY() != to.getFloorY()) {
             Player bukkitPlayer = event.getPlayer();
             com.sk89q.worldedit.entity.Player player = CloudburstAdapter.adapt(bukkitPlayer);
             LocalSession session = player.getSession();

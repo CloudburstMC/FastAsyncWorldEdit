@@ -21,12 +21,13 @@ package com.sk89q.wepif;
 
 import com.sk89q.util.yaml.YAMLFormat;
 import com.sk89q.util.yaml.YAMLProcessor;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.Server;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.server.PluginDisableEvent;
-import org.bukkit.event.server.PluginEnableEvent;
-import org.bukkit.plugin.Plugin;
+import org.cloudburstmc.server.Server;
+import org.cloudburstmc.server.event.EventHandler;
+import org.cloudburstmc.server.event.Listener;
+import org.cloudburstmc.server.event.plugin.PluginDisableEvent;
+import org.cloudburstmc.server.event.plugin.PluginEnableEvent;
+import org.cloudburstmc.server.player.OfflinePlayer;
+import org.cloudburstmc.server.plugin.Plugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,19 +87,12 @@ public class PermissionsResolverManager implements PermissionsResolver {
 
     @SuppressWarnings("unchecked")
     protected Class<? extends PermissionsResolver>[] availableResolvers = new Class[] {
-        PluginPermissionsResolver.class,
-        PermissionsExResolver.class,
-        bPermissionsResolver.class,
-        GroupManagerResolver.class,
-        NijiPermissionsResolver.class,
-        VaultResolver.class,
-        DinnerPermsResolver.class,
-        FlatFilePermissionsResolver.class
+            PluginPermissionsResolver.class
     };
 
     protected PermissionsResolverManager(Plugin plugin) {
         this.server = plugin.getServer();
-        (new ServerListener()).register(plugin); // Register the events
+//        (new ServerListener()).register(plugin); // Register the events
 
         loadConfig(new File("wepif.yml"));
         findResolver();
@@ -273,7 +267,7 @@ public class PermissionsResolverManager implements PermissionsResolver {
     public static class MissingPluginException extends Exception {
     }
 
-    class ServerListener implements org.bukkit.event.Listener {
+    class ServerListener implements Listener {
         @EventHandler
         public void onPluginEnable(PluginEnableEvent event) {
             Plugin plugin = event.getPlugin();

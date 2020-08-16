@@ -1,27 +1,13 @@
-package com.boydti.fawe.bukkit.wrapper;
+package com.boydti.fawe.cloudburst.wrapper;
 
 import com.boydti.fawe.cloudburst.wrapper.state.AsyncSign;
 import com.boydti.fawe.util.TaskManager;
-import com.destroystokyo.paper.block.BlockSoundGroup;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.cloudburst.CloudburstAdapter;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.block.*;
-import org.bukkit.FluidCollisionMode;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.block.Biome;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
-import org.bukkit.block.PistonMoveReaction;
-import org.bukkit.block.data.BlockData;
-import org.bukkit.entity.Entity;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.metadata.MetadataValue;
-import org.bukkit.plugin.Plugin;
-import org.bukkit.util.BoundingBox;
-import org.bukkit.util.RayTraceResult;
-import org.bukkit.util.Vector;
+import org.cloudburstmc.server.block.Block;
+import org.cloudburstmc.server.level.Level;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
@@ -33,9 +19,9 @@ public class AsyncBlock implements Block {
     public int z;
     public int y;
     public int x;
-    public final AsyncWorld world;
+    public final AsyncLevel world;
 
-    public AsyncBlock(AsyncWorld world, int x, int y, int z) {
+    public AsyncBlock(AsyncLevel world, int x, int y, int z) {
         this.world = world;
         this.x = x;
         this.y = Math.max(0, Math.min(255, y));
@@ -137,9 +123,8 @@ public class AsyncBlock implements Block {
         return (byte) 15;
     }
 
-    @NotNull
     @Override
-    public AsyncWorld getWorld() {
+    public Level getLevel() {
         return world;
     }
 

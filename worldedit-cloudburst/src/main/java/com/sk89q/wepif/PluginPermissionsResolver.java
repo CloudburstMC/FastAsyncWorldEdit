@@ -20,10 +20,10 @@
 package com.sk89q.wepif;
 
 import com.sk89q.util.yaml.YAMLProcessor;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.Server;
-import org.bukkit.plugin.Plugin;
-import org.bukkit.plugin.RegisteredServiceProvider;
+import org.cloudburstmc.server.Server;
+import org.cloudburstmc.server.player.OfflinePlayer;
+import org.cloudburstmc.server.plugin.Plugin;
+import org.cloudburstmc.server.plugin.service.RegisteredServiceProvider;
 
 public class PluginPermissionsResolver implements PermissionsResolver {
 
@@ -32,14 +32,14 @@ public class PluginPermissionsResolver implements PermissionsResolver {
 
     public static PermissionsResolver factory(Server server, YAMLProcessor config) {
         // Looking for service
-        RegisteredServiceProvider<PermissionsProvider> serviceProvider = server.getServicesManager().getRegistration(PermissionsProvider.class);
+        RegisteredServiceProvider<PermissionsProvider> serviceProvider = server.getServiceManager().getProvider(PermissionsProvider.class);
 
         if (serviceProvider != null) {
             return new PluginPermissionsResolver(serviceProvider.getProvider(), serviceProvider.getPlugin());
         }
 
         // Looking for plugin
-        for (Plugin plugin : server.getPluginManager().getPlugins()) {
+        for (Plugin plugin : server.getPluginManager().getPlugins().values()) {
             if (plugin instanceof PermissionsProvider) {
                 return new PluginPermissionsResolver((PermissionsProvider) plugin, plugin);
             }

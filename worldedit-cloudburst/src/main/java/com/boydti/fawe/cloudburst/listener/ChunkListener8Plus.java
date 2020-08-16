@@ -1,9 +1,10 @@
-package com.boydti.fawe.bukkit.listener;
+package com.boydti.fawe.cloudburst.listener;
 
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.block.BlockExplodeEvent;
+
+import org.cloudburstmc.server.event.EventHandler;
+import org.cloudburstmc.server.event.EventPriority;
+import org.cloudburstmc.server.event.Listener;
+import org.cloudburstmc.server.event.entity.EntityExplodeEvent;
 
 public class ChunkListener8Plus implements Listener {
 
@@ -14,7 +15,7 @@ public class ChunkListener8Plus implements Listener {
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
-    public void event(BlockExplodeEvent event) {
+    public void event(EntityExplodeEvent event) {
         listener.reset();
     }
 }

@@ -27,20 +27,14 @@ import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.world.World;
-import org.bukkit.block.Block;
-import org.bukkit.event.Event.Result;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerCommandSendEvent;
-import org.bukkit.event.player.PlayerGameModeChangeEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
-import org.enginehub.piston.CommandManager;
-import org.enginehub.piston.inject.InjectedValueStore;
-import org.enginehub.piston.inject.Key;
-import org.enginehub.piston.inject.MapBackedValueStore;
+import org.cloudburstmc.server.block.Block;
+import org.cloudburstmc.server.event.EventHandler;
+import org.cloudburstmc.server.event.EventPriority;
+import org.cloudburstmc.server.event.Listener;
+import org.cloudburstmc.server.event.player.PlayerCommandPreprocessEvent;
+import org.cloudburstmc.server.event.player.PlayerGameModeChangeEvent;
+import org.cloudburstmc.server.event.player.PlayerInteractEvent;
+import org.cloudburstmc.server.event.player.PlayerInteractEvent.Action;
 
 import java.util.Optional;
 
@@ -71,16 +65,16 @@ public class WorldEditListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
-    public void onPlayerCommandSend(PlayerCommandSendEvent event) {
+    public void onPlayerCommandSend(PlayerCommandPreprocessEvent event) {
         InjectedValueStore store = MapBackedValueStore.create();
         store.injectValue(Key.of(Actor.class), context ->
-            Optional.of(plugin.wrapCommandSender(event.getPlayer())));
+                Optional.of(plugin.wrapCommandSender(event.getPlayer())));
         CommandManager commandManager = plugin.getWorldEdit().getPlatformManager().getPlatformCommandManager().getCommandManager();
         event.getCommands().removeIf(name ->
-            // remove if in the manager and not satisfied
-            commandManager.getCommand(name)
-                .filter(command -> !command.getCondition().satisfied(store))
-                .isPresent()
+                // remove if in the manager and not satisfied
+                commandManager.getCommand(name)
+                        .filter(command -> !command.getCondition().satisfied(store))
+                        .isPresent()
         );
     }
 
@@ -95,22 +89,14 @@ public class WorldEditListener implements Listener {
             return;
         }
 
-        if (event.useItemInHand() == Result.DENY) {
-            return;
-        }
-
-        if (event.getHand() == EquipmentSlot.OFF_HAND) {
-            return;
-        }
-
         final Player player = plugin.wrapPlayer(event.getPlayer());
         final World world = player.getWorld();
         final WorldEdit we = plugin.getWorldEdit();
-        final Direction direction = CloudburstAdapter.adapt(event.getBlockFace());
+        final Direction direction = CloudburstAdapter.adapt(event.getFace());
 
         Action action = event.getAction();
         if (action == Action.LEFT_CLICK_BLOCK) {
-            final Block clickedBlock = event.getClickedBlock();
+            final Block clickedBlock = event.getBlock();
             final Location pos = new Location(world, clickedBlock.getX(), clickedBlock.getY(), clickedBlock.getZ());
 
             if (we.handleBlockLeftClick(player, pos, direction)) {
@@ -128,7 +114,7 @@ public class WorldEditListener implements Listener {
             }
 
         } else if (action == Action.RIGHT_CLICK_BLOCK) {
-            final Block clickedBlock = event.getClickedBlock();
+            final Block clickedBlock = event.getBlock();
             final Location pos = new Location(world, clickedBlock.getX(), clickedBlock.getY(), clickedBlock.getZ());
 
             if (we.handleBlockRightClick(player, pos, direction)) {

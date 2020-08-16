@@ -17,16 +17,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.sk89q.bukkit.util;
+package com.sk89q.worldedit.cloudburst;
 
-import org.cloudburstmc.server.command.Command;
-import org.cloudburstmc.server.command.CommandSender;
+import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
+import com.sk89q.worldedit.extension.platform.Watchdog;
 
-public interface CommandInspector {
+class CloudburstWatchdog implements Watchdog {
 
-    String getShortText(Command command);
+    private final CloudburstImplAdapter adapter;
 
-    String getFullText(Command command);
+    CloudburstWatchdog(CloudburstImplAdapter adapter) {
+        this.adapter = adapter;
+    }
 
-    boolean testPermission(CommandSender sender, Command command);
+    @Override
+    public void tick() {
+        adapter.tickWatchdog();
+    }
+
 }

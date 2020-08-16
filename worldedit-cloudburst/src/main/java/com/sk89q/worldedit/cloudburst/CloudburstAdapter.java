@@ -30,7 +30,6 @@ import com.nukkitx.nbt.NbtType;
 import com.sk89q.jnbt.*;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItemStack;
-import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.extension.input.ParserContext;
 import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extension.platform.PlayerProxy;
@@ -49,9 +48,11 @@ import com.sk89q.worldedit.world.gamemode.GameMode;
 import com.sk89q.worldedit.world.item.ItemType;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import org.cloudburstmc.server.Server;
 import org.cloudburstmc.server.block.BlockPalette;
 import org.cloudburstmc.server.command.CommandSender;
 import org.cloudburstmc.server.item.Item;
+import org.cloudburstmc.server.level.Level;
 import org.cloudburstmc.server.level.biome.Biome;
 import org.cloudburstmc.server.player.Player;
 import org.cloudburstmc.server.registry.BiomeRegistry;
@@ -61,7 +62,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.logging.Level;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -83,7 +83,7 @@ public class CloudburstAdapter {
      * Checks equality between a WorldEdit BlockType and a Bukkit Material.
      *
      * @param blockType The WorldEdit BlockType
-     * @param type The Bukkit Material
+     * @param type      The Bukkit Material
      * @return If they are equal
      */
     public static boolean equals(BlockType blockType, Identifier type) {
@@ -91,26 +91,14 @@ public class CloudburstAdapter {
     }
 
     /**
-     * Convert any WorldEdit world into an equivalent wrapped Bukkit world.
-     *
-     * <p>If a matching world cannot be found, a {@link RuntimeException}
-     * will be thrown.</p>
-     *
-     * @param world the world
-     * @return a wrapped Bukkit world
-     */
-    public static Level asCloudburstWorld(World world) {
-        return getAdapter().asBukkitWorld(world);
-    }
-
-    /**
      * Create a WorldEdit world from a Bukkit world.
      *
-     * @param world the Bukkit world
+     * @param level the Bukkit world
      * @return a WorldEdit world
      */
-    public static World adapt(org.bukkit.World world) {
-        return getAdapter().adapt(world);
+    public static CloudburstWorld adapt(Level level) {
+        checkNotNull(level);
+        return new CloudburstWorld(level);
     }
 
     public static IChunkGet adapt(org.cloudburstmc.server.level.Level level, int chunkX, int chunkZ) {
@@ -146,10 +134,10 @@ public class CloudburstAdapter {
     public static CommandSender adapt(Actor actor) {
         if (actor instanceof com.sk89q.worldedit.entity.Player) {
             return adapt((com.sk89q.worldedit.entity.Player) actor);
-        } else if (actor instanceof BukkitBlockCommandSender) {
-            return ((BukkitBlockCommandSender) actor).getSender();
+        } else if (actor instanceof CloudburstBlockCommandSender) {
+            return ((CloudburstBlockCommandSender) actor).getSender();
         }
-        return ((BukkitCommandSender) actor).getSender();
+        return ((CloudburstCommandSender) actor).getSender();
     }
 
     /**
@@ -174,11 +162,16 @@ public class CloudburstAdapter {
             return null;
         }
         switch (face) {
-            case NORTH: return Direction.NORTH;
-            case SOUTH: return Direction.SOUTH;
-            case WEST: return Direction.WEST;
-            case EAST: return Direction.EAST;
-            case DOWN: return Direction.DOWN;
+            case NORTH:
+                return Direction.NORTH;
+            case SOUTH:
+                return Direction.SOUTH;
+            case WEST:
+                return Direction.WEST;
+            case EAST:
+                return Direction.EAST;
+            case DOWN:
+                return Direction.DOWN;
             case UP:
             default:
                 return Direction.UP;
@@ -196,11 +189,16 @@ public class CloudburstAdapter {
             return null;
         }
         switch (direction) {
-            case NORTH: return org.cloudburstmc.server.math.Direction.NORTH;
-            case SOUTH: return org.cloudburstmc.server.math.Direction.SOUTH;
-            case WEST: return org.cloudburstmc.server.math.Direction.WEST;
-            case EAST: return org.cloudburstmc.server.math.Direction.EAST;
-            case DOWN: return org.cloudburstmc.server.math.Direction.DOWN;
+            case NORTH:
+                return org.cloudburstmc.server.math.Direction.NORTH;
+            case SOUTH:
+                return org.cloudburstmc.server.math.Direction.SOUTH;
+            case WEST:
+                return org.cloudburstmc.server.math.Direction.WEST;
+            case EAST:
+                return org.cloudburstmc.server.math.Direction.EAST;
+            case DOWN:
+                return org.cloudburstmc.server.math.Direction.DOWN;
             case UP:
             default:
                 return org.cloudburstmc.server.math.Direction.UP;
@@ -214,7 +212,17 @@ public class CloudburstAdapter {
      * @return a Bukkit world
      */
     public static org.cloudburstmc.server.level.Level adapt(World world) {
-        return getAdapter().adapt(world);
+        checkNotNull(world);
+        if (world instanceof CloudburstWorld) {
+            return ((CloudburstWorld) world).getWorld();
+        } else {
+            Level match = Server.getInstance().getLevelByName(world.getName());
+            if (match != null) {
+                return match;
+            } else {
+                throw new IllegalArgumentException("Can't find a Bukkit world for " + world);
+            }
+        }
     }
 
     /**
@@ -223,11 +231,11 @@ public class CloudburstAdapter {
      * @param location the Bukkit location
      * @return a WorldEdit location
      */
-    public static Location adapt(org.bukkit.Location location) {
+    public static Location adapt(org.cloudburstmc.server.level.Location location) {
         checkNotNull(location);
         Vector3 position = asVector(location);
         return new Location(
-                adapt(location.getWorld()),
+                adapt(location.getLevel()),
                 position,
                 location.getYaw(),
                 location.getPitch());
@@ -241,18 +249,20 @@ public class CloudburstAdapter {
      */
     public static org.cloudburstmc.server.level.Location adapt(Location location) {
         checkNotNull(location);
-        Vector3 position = location;
-        return new org.bukkit.Location(
-                adapt((World) location.getExtent()),
-                position.getX(), position.getY(), position.getZ(),
+        return org.cloudburstmc.server.level.Location.from(
+                (float) location.getX(),
+                (float) location.getY(),
+                (float) location.getZ(),
                 location.getYaw(),
-                location.getPitch());
+                location.getPitch(),
+                adapt((World) location.getExtent())
+        );
     }
 
     /**
      * Create a Bukkit location from a WorldEdit position with a Bukkit world.
      *
-     * @param world the Bukkit world
+     * @param world    the Bukkit world
      * @param position the WorldEdit position
      * @return a Bukkit location
      */
@@ -266,7 +276,7 @@ public class CloudburstAdapter {
     /**
      * Create a Bukkit location from a WorldEdit position with a Bukkit world.
      *
-     * @param world the Bukkit world
+     * @param world    the Bukkit world
      * @param position the WorldEdit position
      * @return a Bukkit location
      */
@@ -280,7 +290,7 @@ public class CloudburstAdapter {
     /**
      * Create a Bukkit location from a WorldEdit location with a Bukkit world.
      *
-     * @param world the Bukkit world
+     * @param world    the Bukkit world
      * @param location the WorldEdit location
      * @return a Bukkit location
      */
@@ -319,8 +329,9 @@ public class CloudburstAdapter {
      * @param entity the Bukkit entity
      * @return a WorldEdit entity
      */
-    public static Entity adapt(org.cloudburstmc.server.entity.Entity entity) {
-        return getAdapter().adapt(entity);
+    public static CloudburstEntity adapt(org.cloudburstmc.server.entity.Entity entity) {
+        checkNotNull(entity);
+        return new CloudburstEntity(entity);
     }
 
     /**
@@ -468,6 +479,10 @@ public class CloudburstAdapter {
         return (NbtMap) adaptTag(compoundTag);
     }
 
+    public static Tag adapt(Tag tag) {
+        return (Tag) adaptTag(tag);
+    }
+
     private static final ImmutableBiMap<NbtType<?>, Class<? extends Tag>> TAG_CLASSES = ImmutableBiMap.<NbtType<?>, Class<? extends Tag>>builder()
             .put(NbtType.COMPOUND, CompoundTag.class)
             .put(NbtType.LIST, ListTag.class)
@@ -484,7 +499,7 @@ public class CloudburstAdapter {
             .build();
 
     @SuppressWarnings("unchecked")
-    private static <T extends Tag> T adaptTag(Object tag) {
+    public static <T extends Tag> T adaptTag(Object tag) {
         if (tag instanceof NbtMap) {
             NbtMap nbtMap = (NbtMap) tag;
             Map<String, Tag> tags = new LinkedHashMap<>();

@@ -29,7 +29,7 @@ import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItem;
 import com.sk89q.worldedit.blocks.BaseItemStack;
-import com.sk89q.worldedit.cloudburst.adapter.BukkitImplAdapter;
+import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.math.BlockVector2;
@@ -59,13 +59,17 @@ import org.cloudburstmc.server.inventory.InventoryHolder;
 import org.cloudburstmc.server.level.Level;
 import org.cloudburstmc.server.potion.Effect;
 import org.cloudburstmc.server.registry.BiomeRegistry;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -131,12 +135,12 @@ public class CloudburstWorld extends AbstractWorld {
     @Nullable
     @Override
     public com.sk89q.worldedit.entity.Entity createEntity(com.sk89q.worldedit.util.Location location, BaseEntity entity) {
-        BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
+        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
         if (adapter != null) {
             try {
                 Entity createdEntity = adapter.createEntity(CloudburstAdapter.adapt(getWorld(), location), entity);
                 if (createdEntity != null) {
-                    return new BukkitEntity(createdEntity);
+                    return new CloudburstEntity(createdEntity);
                 } else {
                     return null;
                 }
@@ -204,7 +208,7 @@ public class CloudburstWorld extends AbstractWorld {
 
     @Override
     public boolean regenerate(Region region, EditSession editSession) {
-        BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
+        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
         try {
             if (adapter != null) {
                 return adapter.regenerate(getWorld(), region, editSession);
@@ -473,7 +477,7 @@ public class CloudburstWorld extends AbstractWorld {
 
     @Override
     public com.sk89q.worldedit.world.block.BlockState getBlock(BlockVector3 position) {
-        BukkitImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
+        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
         if (adapter != null) {
             try {
                 return adapter.getBlock(CloudburstAdapter.adapt(getWorld(), position)).toImmutableState();
