@@ -19,20 +19,16 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.extension.platform.Watchdog;
 
 class CloudburstWatchdog implements Watchdog {
 
-    private final CloudburstImplAdapter adapter;
-
-    CloudburstWatchdog(CloudburstImplAdapter adapter) {
-        this.adapter = adapter;
+    CloudburstWatchdog() {
     }
 
     @Override
     public void tick() {
-        adapter.tickWatchdog();
+        // no-op
     }
 
 }

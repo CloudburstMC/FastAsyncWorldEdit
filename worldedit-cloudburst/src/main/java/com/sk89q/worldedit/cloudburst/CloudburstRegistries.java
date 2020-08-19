@@ -19,7 +19,10 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.worldedit.world.registry.*;
+import com.sk89q.worldedit.world.registry.BiomeRegistry;
+import com.sk89q.worldedit.world.registry.BlockRegistry;
+import com.sk89q.worldedit.world.registry.BundledRegistries;
+import com.sk89q.worldedit.world.registry.EntityRegistry;
 
 /**
  * World data for the Bukkit platform.
@@ -29,10 +32,10 @@ class CloudburstRegistries extends BundledRegistries {
     private static final CloudburstRegistries INSTANCE = new CloudburstRegistries();
     private final BlockRegistry blockRegistry = new CloudburstBlockRegistry();
     private final BiomeRegistry biomeRegistry = new CloudburstBiomeRegistry();
-    private final ItemRegistry itemRegistry = new CloudburstItemRegistry();
+    //    private final ItemRegistry itemRegistry = new CloudburstItemRegistry();
     private final EntityRegistry entityRegistry = new CloudburstEntityRegistry();
-    private final BlockCategoryRegistry blockCategoryRegistry = new CloudburstBlockCategoryRegistry();
-    private final ItemCategoryRegistry itemCategoryRegistry = new CloudburstItemCategoryRegistry();
+//    private final BlockCategoryRegistry blockCategoryRegistry = new CloudburstBlockCategoryRegistry();
+//    private final ItemCategoryRegistry itemCategoryRegistry = new CloudburstItemCategoryRegistry();
 
     /**
      * Create a new instance.
@@ -50,20 +53,20 @@ class CloudburstRegistries extends BundledRegistries {
         return biomeRegistry;
     }
 
-    @Override
-    public ItemRegistry getItemRegistry() {
-        return itemRegistry;
-    }
+//    @Override
+//    public ItemRegistry getItemRegistry() {
+//        return itemRegistry;
+//    }
 
-    @Override
-    public BlockCategoryRegistry getBlockCategoryRegistry() {
-        return blockCategoryRegistry;
-    }
+//    @Override
+//    public BlockCategoryRegistry getBlockCategoryRegistry() {
+//        return blockCategoryRegistry;
+//    }
 
-    @Override
-    public ItemCategoryRegistry getItemCategoryRegistry() {
-        return itemCategoryRegistry;
-    }
+//    @Override
+//    public ItemCategoryRegistry getItemCategoryRegistry() {
+//        return itemCategoryRegistry;
+//    }
 
     @Override
     public EntityRegistry getEntityRegistry() {

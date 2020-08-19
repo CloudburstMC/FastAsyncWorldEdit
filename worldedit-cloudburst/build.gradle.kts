@@ -18,7 +18,7 @@ repositories {
 dependencies {
     implementation(project(":worldedit-core"))
     implementation(project(":worldedit-libs:cloudburst"))
-    implementation("org.cloudburstmc:cloudburst-server:1.0.0-SNAPSHOT")
+    implementation("org.cloudburstmc:cloudburst-server:1.0.0-SNAPSHOT") { isChanging = true }
     implementation("com.google.code.gson:gson:2.8.6")
     implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.8.1")
     implementation("org.slf4j:slf4j-api:1.7.10")

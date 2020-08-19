@@ -21,7 +21,7 @@ package com.sk89q.wepif;
 
 import com.sk89q.util.yaml.YAMLProcessor;
 import org.cloudburstmc.server.Server;
-import org.cloudburstmc.server.player.OfflinePlayer;
+import org.cloudburstmc.server.player.IPlayer;
 import org.cloudburstmc.server.plugin.Plugin;
 import org.cloudburstmc.server.plugin.service.RegisteredServiceProvider;
 
@@ -78,22 +78,22 @@ public class PluginPermissionsResolver implements PermissionsResolver {
     }
 
     @Override
-    public boolean hasPermission(OfflinePlayer player, String permission) {
+    public boolean hasPermission(IPlayer player, String permission) {
         return resolver.hasPermission(player, permission);
     }
 
     @Override
-    public boolean hasPermission(String worldName, OfflinePlayer player, String permission) {
+    public boolean hasPermission(String worldName, IPlayer player, String permission) {
         return resolver.hasPermission(worldName, player, permission);
     }
 
     @Override
-    public boolean inGroup(OfflinePlayer player, String group) {
+    public boolean inGroup(IPlayer player, String group) {
         return resolver.inGroup(player, group);
     }
 
     @Override
-    public String[] getGroups(OfflinePlayer player) {
+    public String[] getGroups(IPlayer player) {
         return resolver.getGroups(player);
     }
 

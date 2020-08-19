@@ -20,7 +20,7 @@
 package com.sk89q.wepif;
 
 
-import org.cloudburstmc.server.player.OfflinePlayer;
+import org.cloudburstmc.server.player.IPlayer;
 
 public interface PermissionsProvider {
     boolean hasPermission(String name, String permission);
@@ -31,11 +31,11 @@ public interface PermissionsProvider {
 
     String[] getGroups(String player);
 
-    boolean hasPermission(OfflinePlayer player, String permission);
+    boolean hasPermission(IPlayer player, String permission);
 
-    boolean hasPermission(String worldName, OfflinePlayer player, String permission);
+    boolean hasPermission(String worldName, IPlayer player, String permission);
 
-    boolean inGroup(OfflinePlayer player, String group);
+    boolean inGroup(IPlayer player, String group);
 
-    String[] getGroups(OfflinePlayer player);
+    String[] getGroups(IPlayer player);
 }

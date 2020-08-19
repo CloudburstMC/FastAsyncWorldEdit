@@ -25,7 +25,6 @@ import com.sk89q.worldedit.session.SessionKey;
 import com.sk89q.worldedit.util.auth.AuthorizationException;
 import com.sk89q.worldedit.util.formatting.WorldEditText;
 import com.sk89q.worldedit.util.formatting.text.Component;
-import com.sk89q.worldedit.util.formatting.text.adapter.bukkit.TextAdapter;
 import org.cloudburstmc.server.command.CommandSender;
 import org.cloudburstmc.server.entity.Entity;
 import org.cloudburstmc.server.player.Player;
@@ -100,7 +99,7 @@ public class CloudburstCommandSender extends AbstractNonPlayerActor {
 
     @Override
     public void print(Component component) {
-        TextAdapter.sendMessage(sender, WorldEditText.format(component, getLocale()));
+        sender.sendMessage(WorldEditText.reduceToText(component, getLocale()));
     }
 
     @Override

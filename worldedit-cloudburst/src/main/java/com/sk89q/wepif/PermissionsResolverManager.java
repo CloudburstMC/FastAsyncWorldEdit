@@ -26,7 +26,7 @@ import org.cloudburstmc.server.event.EventHandler;
 import org.cloudburstmc.server.event.Listener;
 import org.cloudburstmc.server.event.plugin.PluginDisableEvent;
 import org.cloudburstmc.server.event.plugin.PluginEnableEvent;
-import org.cloudburstmc.server.player.OfflinePlayer;
+import org.cloudburstmc.server.player.IPlayer;
 import org.cloudburstmc.server.plugin.Plugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -155,22 +155,22 @@ public class PermissionsResolverManager implements PermissionsResolver {
     }
 
     @Override
-    public boolean hasPermission(OfflinePlayer player, String permission) {
+    public boolean hasPermission(IPlayer player, String permission) {
         return permissionResolver.hasPermission(player, permission);
     }
 
     @Override
-    public boolean hasPermission(String worldName, OfflinePlayer player, String permission) {
+    public boolean hasPermission(String worldName, IPlayer player, String permission) {
         return permissionResolver.hasPermission(worldName, player, permission);
     }
 
     @Override
-    public boolean inGroup(OfflinePlayer player, String group) {
+    public boolean inGroup(IPlayer player, String group) {
         return permissionResolver.inGroup(player, group);
     }
 
     @Override
-    public String[] getGroups(OfflinePlayer player) {
+    public String[] getGroups(IPlayer player) {
         return permissionResolver.getGroups(player);
     }
 

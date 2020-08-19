@@ -19,50 +19,41 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.boydti.fawe.Fawe;
-import com.boydti.fawe.cloudburst.FaweCloudburst;
-import com.boydti.fawe.config.Caption;
 import com.boydti.fawe.config.Settings;
 import com.boydti.fawe.object.RunnableVal;
 import com.boydti.fawe.util.TaskManager;
+import com.nukkitx.math.vector.Vector3i;
+import com.nukkitx.protocol.bedrock.packet.UpdateBlockPacket;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItemStack;
-import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.extension.platform.AbstractPlayerActor;
-import com.sk89q.worldedit.extent.Extent;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
 import com.sk89q.worldedit.internal.cui.CUIEvent;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.Vector3;
 import com.sk89q.worldedit.session.SessionKey;
 import com.sk89q.worldedit.util.HandSide;
+import com.sk89q.worldedit.util.Location;
 import com.sk89q.worldedit.util.formatting.WorldEditText;
 import com.sk89q.worldedit.util.formatting.component.TextUtils;
 import com.sk89q.worldedit.util.formatting.text.Component;
-import com.sk89q.worldedit.util.formatting.text.TextComponent;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
-import com.sk89q.worldedit.util.formatting.text.adapter.bukkit.TextAdapter;
-import com.sk89q.worldedit.util.formatting.text.event.ClickEvent;
-import com.sk89q.worldedit.util.formatting.text.format.TextColor;
 import com.sk89q.worldedit.world.World;
 import com.sk89q.worldedit.world.block.BaseBlock;
 import com.sk89q.worldedit.world.block.BlockStateHolder;
-import com.sk89q.worldedit.world.block.BlockTypes;
 import com.sk89q.worldedit.world.gamemode.GameMode;
 import com.sk89q.worldedit.world.gamemode.GameModes;
-import org.bukkit.Bukkit;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.entity.Item;
-import org.bukkit.event.player.PlayerDropItemEvent;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.PlayerInventory;
+import org.cloudburstmc.server.AdventureSettings;
+import org.cloudburstmc.server.Server;
+import org.cloudburstmc.server.event.player.PlayerDropItemEvent;
+import org.cloudburstmc.server.inventory.PlayerInventory;
+import org.cloudburstmc.server.item.Item;
 import org.cloudburstmc.server.player.Player;
+import org.cloudburstmc.server.registry.BlockRegistry;
+import org.cloudburstmc.server.utils.TextFormat;
 
 import javax.annotation.Nullable;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
@@ -97,22 +88,22 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public UUID getUniqueId() {
-        return player.getUniqueId();
+        return player.getServerId();
     }
 
     @Override
     public BaseItemStack getItemInHand(HandSide handSide) {
-        ItemStack itemStack = handSide == HandSide.MAIN_HAND
-                ? player.getInventory().getItemInMainHand()
-                : player.getInventory().getItemInOffHand();
+        Item itemStack = handSide == HandSide.MAIN_HAND
+                ? player.getInventory().getItemInHand()
+                : player.getInventory().getOffHand();
         return CloudburstAdapter.adapt(itemStack);
     }
 
     @Override
     public BaseBlock getBlockInHand(HandSide handSide) throws WorldEditException {
-        ItemStack itemStack = handSide == HandSide.MAIN_HAND
-                ? player.getInventory().getItemInMainHand()
-                : player.getInventory().getItemInOffHand();
+        Item itemStack = handSide == HandSide.MAIN_HAND
+                ? player.getInventory().getItemInHand()
+                : player.getInventory().getOffHand();
         return CloudburstAdapter.asBlockState(itemStack).toBaseBlock();
     }
 
@@ -129,33 +120,28 @@ public class CloudburstPlayer extends AbstractPlayerActor {
     @Override
     public void giveItem(BaseItemStack itemStack) {
         final PlayerInventory inv = player.getInventory();
-        ItemStack newItem = CloudburstAdapter.adapt(itemStack);
+        Item newItem = CloudburstAdapter.adapt(itemStack);
         if (itemStack.getType().getId().equalsIgnoreCase(WorldEdit.getInstance().getConfiguration().wandItem)) {
             inv.remove(newItem);
         }
-        final ItemStack item = player.getInventory().getItemInMainHand();
-        player.getInventory().setItemInMainHand(newItem);
-        HashMap<Integer, ItemStack> overflow = inv.addItem(item);
-        if (!overflow.isEmpty()) {
+        final Item item = player.getInventory().getItemInHand();
+        player.getInventory().setItemInHand(newItem);
+        Item[] overflow = inv.addItem(item);
+        if (overflow.length != 0) {
             TaskManager.IMP.sync(new RunnableVal<Object>() {
                 @Override
                 public void run(Object value) {
-                    for (Map.Entry<Integer, ItemStack> entry : overflow.entrySet()) {
-                        ItemStack stack = entry.getValue();
-                        if (stack.getType() != Material.AIR && stack.getAmount() > 0) {
-                            Item
-                                dropped = player.getWorld().dropItem(player.getLocation(), stack);
-                            PlayerDropItemEvent event = new PlayerDropItemEvent(player, dropped);
-                            Bukkit.getPluginManager().callEvent(event);
-                            if (event.isCancelled()) {
-                                dropped.remove();
-                            }
+                    for (Item stack : overflow) {
+                        if (stack.getId() != org.cloudburstmc.server.block.BlockTypes.AIR && stack.getCount() > 0) {
+                            PlayerDropItemEvent event = new PlayerDropItemEvent(player, stack);
+                            Server.getInstance().getPluginManager().callEvent(event);
+                            if (event.isCancelled()) continue;
+                            player.getLevel().dropItem(player.getPosition(), stack);
                         }
                     }
                 }
             });
         }
-        player.updateInventory();
     }
 
     @Override
@@ -192,22 +178,13 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public void print(Component component) {
-        component = Caption.color(TranslatableComponent.of("prefix", component), getLocale());
-        TextAdapter.sendComponent(player, component);
+        player.sendMessage(TextFormat.colorize(WorldEditText.reduceToText(component, getLocale())));
     }
 
     @Override
     public boolean trySetPosition(Vector3 pos, float pitch, float yaw) {
-        org.bukkit.World world = player.getWorld();
-        if (pos instanceof com.sk89q.worldedit.util.Location) {
-            com.sk89q.worldedit.util.Location loc = (com.sk89q.worldedit.util.Location) pos;
-            Extent extent = loc.getExtent();
-            if (extent instanceof World) {
-                world = Bukkit.getWorld(((World) extent).getName());
-            }
-        }
-        org.bukkit.World finalWorld = world;
-        return TaskManager.IMP.sync(() -> player.teleport(new Location(finalWorld, pos.getX(), pos.getY(), pos.getZ(), yaw, pitch)));
+        return TaskManager.IMP.sync(() ->
+                player.teleport(CloudburstAdapter.adapt(new Location(CloudburstAdapter.adapt(player.getLevel()), pos, pitch, yaw))));
     }
 
     @Override
@@ -222,41 +199,43 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public GameMode getGameMode() {
-        return GameModes.get(player.getGameMode().name().toLowerCase(Locale.ROOT));
+        return GameModes.get(player.getGamemode().getName().toLowerCase(getLocale()));
     }
 
     @Override
     public void setGameMode(GameMode gameMode) {
-        player.setGameMode(org.bukkit.GameMode.valueOf(gameMode.getId().toUpperCase(Locale.ROOT)));
+        player.setGamemode(org.cloudburstmc.server.player.GameMode.from(gameMode.getId()));
     }
 
     @Override
     public boolean hasPermission(String perm) {
         return (!plugin.getLocalConfiguration().noOpPermissions && player.isOp())
                 || plugin.getPermissionsResolver().hasPermission(
-                    player.getWorld().getName(), player, perm);
+                player.getLevel().getName(), player, perm);
     }
 
     @Override
     public void setPermission(String permission, boolean value) {
+
+        // TODO
         /*
          *  Permissions are used to managing WorldEdit region restrictions
          *   - The `/wea` command will give/remove the required bypass permission
          */
-        if (Fawe.<FaweCloudburst>imp().getVault() == null || Fawe.<FaweCloudburst>imp().getVault().permission == null) {
-            player.addAttachment(plugin).setPermission(permission, value);
-        } else if (value) {
-            if (!Fawe.<FaweCloudburst>imp().getVault().permission.playerAdd(player, permission)) {
-                player.addAttachment(plugin).setPermission(permission, value);
-            }
-        } else if (!Fawe.<FaweCloudburst>imp().getVault().permission.playerRemove(player, permission)) {
-            player.addAttachment(plugin).setPermission(permission, value);
-        }
+//        if (Fawe.<FaweCloudburst>imp().getVault() == null || Fawe.<FaweCloudburst>imp().getVault().permission == null) {
+//            player.addAttachment(plugin).setPermission(permission, value);
+//        } else if (value) {
+//            if (!Fawe.<FaweCloudburst>imp().getVault().permission.playerAdd(player, permission)) {
+//                player.addAttachment(plugin).setPermission(permission, value);
+//            }
+//        } else if (!Fawe.<FaweCloudburst>imp().getVault().permission.playerRemove(player, permission)) {
+//            player.addAttachment(plugin).setPermission(permission, value);
+//        }
     }
 
     @Override
     public World getWorld() {
-        return CloudburstAdapter.adapt(player.getWorld());
+        return CloudburstAdapter.adapt(player.getLevel());
     }
 
     @Override
@@ -280,7 +259,8 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public void setFlying(boolean flying) {
-        player.setFlying(flying);
+        player.getAdventureSettings().set(AdventureSettings.Type.FLYING, flying);
+        player.getAdventureSettings().update();
     }
 
     @Override
@@ -290,13 +270,7 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public com.sk89q.worldedit.util.Location getLocation() {
-        Location nativeLocation = player.getLocation();
-        Vector3 position = CloudburstAdapter.asVector(nativeLocation);
-        return new com.sk89q.worldedit.util.Location(
-                getWorld(),
-                position,
-                nativeLocation.getYaw(),
-                nativeLocation.getPitch());
+        return CloudburstAdapter.adapt(player.getLocation());
     }
 
     @Override
@@ -306,16 +280,16 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public Locale getLocale() {
-        return TextUtils.getLocaleByMinecraftTag(player.getLocale());
+        return TextUtils.getLocaleByMinecraftTag(player.getLoginChainData().getLanguageCode());
     }
 
     @Override
     public void sendAnnouncements() {
-        if (WorldEditPlugin.getInstance().getAdapter() == null) {
-            printError(TranslatableComponent.of("worldedit.version.bukkit.unsupported-adapter",
-                    TextComponent.of("https://intellectualsites.github.io/download/fawe.html", TextColor.AQUA)
-                        .clickEvent(ClickEvent.openUrl("https://intellectualsites.github.io/download/fawe.html"))));
-        }
+//        if (WorldEditPlugin.getInstance().getAdapter() == null) {
+//            printError(TranslatableComponent.of("worldedit.version.bukkit.unsupported-adapter",
+//                    TextComponent.of("https://intellectualsites.github.io/download/fawe.html", TextColor.AQUA)
+//                        .clickEvent(ClickEvent.openUrl("https://intellectualsites.github.io/download/fawe.html"))));
+//        }
     }
 
     @Nullable
@@ -326,7 +300,7 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public SessionKey getSessionKey() {
-        return new SessionKeyImpl(this.player.getUniqueId(), player.getName());
+        return new SessionKeyImpl(player.getServerId(), player.getName());
     }
 
     private static class SessionKeyImpl implements SessionKey {
@@ -357,7 +331,7 @@ public class CloudburstPlayer extends AbstractPlayerActor {
             // CopyOnWrite list for the list of players, but the Bukkit
             // specification doesn't require thread safety (though the
             // spec is extremely incomplete)
-            return Bukkit.getServer().getPlayer(uuid) != null;
+            return Server.getInstance().getPlayer(uuid) != null;
         }
 
         @Override
@@ -369,21 +343,11 @@ public class CloudburstPlayer extends AbstractPlayerActor {
 
     @Override
     public <B extends BlockStateHolder<B>> void sendFakeBlock(BlockVector3 pos, B block) {
-        Location loc = new Location(player.getWorld(), pos.getX(), pos.getY(), pos.getZ());
-        if (block == null) {
-            player.sendBlockChange(loc, player.getWorld().getBlockAt(loc).getBlockData());
-        } else {
-            player.sendBlockChange(loc, CloudburstAdapter.adapt(block));
-            if (block instanceof BaseBlock && ((BaseBlock) block).hasNbtData()) {
-                CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-                if (adapter != null) {
-                    if (block.getBlockType() == BlockTypes.STRUCTURE_BLOCK) {
-                        adapter.sendFakeNBT(player, pos, ((BaseBlock) block).getNbtData());
-                        adapter.sendFakeOP(player);
-                    }
-                }
-            }
-        }
+        UpdateBlockPacket packet = new UpdateBlockPacket();
+        packet.setBlockPosition(Vector3i.from(pos.getX(), pos.getY(), pos.getZ()));
+        packet.setDataLayer(0);
+        packet.setRuntimeId(BlockRegistry.get().getRuntimeId(CloudburstAdapter.adapt(block)));
+        player.sendPacket(packet);
     }
 
     @Override

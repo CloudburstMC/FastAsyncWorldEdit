@@ -29,7 +29,6 @@ import com.sk89q.wepif.PermissionsResolverManager;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.event.platform.CommandEvent;
 import com.sk89q.worldedit.event.platform.PlatformReadyEvent;
@@ -37,31 +36,23 @@ import com.sk89q.worldedit.extension.platform.Actor;
 import com.sk89q.worldedit.extent.inventory.BlockBag;
 import com.sk89q.worldedit.internal.anvil.ChunkDeleter;
 import com.sk89q.worldedit.world.biome.BiomeType;
-import com.sk89q.worldedit.world.block.BlockCategory;
 import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.gamemode.GameModes;
-import com.sk89q.worldedit.world.item.ItemCategory;
 import com.sk89q.worldedit.world.weather.WeatherTypes;
-import org.bstats.bukkit.Metrics;
-import org.bukkit.Bukkit;
-import org.bukkit.Material;
-import org.bukkit.Tag;
-import org.bukkit.command.BlockCommandSender;
-import org.bukkit.event.world.WorldInitEvent;
-import org.bukkit.metadata.FixedMetadataValue;
-import org.bukkit.metadata.MetadataValue;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import org.cloudburstmc.server.Server;
 import org.cloudburstmc.server.command.Command;
 import org.cloudburstmc.server.command.CommandSender;
 import org.cloudburstmc.server.event.EventHandler;
 import org.cloudburstmc.server.event.EventPriority;
 import org.cloudburstmc.server.event.Listener;
+import org.cloudburstmc.server.event.level.LevelInitEvent;
 import org.cloudburstmc.server.level.biome.Biome;
+import org.cloudburstmc.server.metadata.MetadataValue;
 import org.cloudburstmc.server.plugin.Plugin;
 import org.cloudburstmc.server.plugin.PluginBase;
 import org.cloudburstmc.server.registry.BiomeRegistry;
 import org.cloudburstmc.server.registry.EntityRegistry;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +79,6 @@ public class WorldEditPlugin extends PluginBase {
     ///The BSTATS_ID needs to be modified for FAWE to prevent contaminating WorldEdit stats
     private static final int BSTATS_PLUGIN_ID = 1403;
 
-    private CloudburstImplAdapter bukkitAdapter;
     private CloudburstServerInterface server;
     private CloudburstConfiguration config;
 
@@ -173,7 +163,7 @@ public class WorldEditPlugin extends PluginBase {
         }
 
         // Enable metrics
-        new Metrics(this, BSTATS_PLUGIN_ID);
+//        new Metrics(this, BSTATS_PLUGIN_ID);
     }
 
     private void setupPreWorldData() {
@@ -182,20 +172,26 @@ public class WorldEditPlugin extends PluginBase {
     }
 
     private void setupWorldData() {
-        setupTags(); // datapacks aren't loaded until just before the world is, and bukkit has no event for this
-        // so the earliest we can do this is in WorldInit
         WorldEdit.getInstance().getEventBus().post(new PlatformReadyEvent());
     }
 
     @SuppressWarnings({"deprecation", "unchecked"})
     private void initializeRegistries() {
         // Biome
-        for (Biome biome : BiomeRegistry.get().values()) {
-            String type = biome.getId().toString();
+        Int2ObjectMap<Biome> biomes;
+        try {
+            Field biomesField = BiomeRegistry.class.getDeclaredField("runtimeToBiomeMap");
+            biomesField.setAccessible(true);
+            biomes = (Int2ObjectMap<Biome>) biomesField.get(BiomeRegistry.get());
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            e.printStackTrace();
+            throw new IllegalStateException(e);
+        }
+        for (Int2ObjectMap.Entry<Biome> entry : biomes.int2ObjectEntrySet()) {
+            String type = entry.getValue().getId().toString();
             BiomeType biomeType = BiomeType.REGISTRY.register(type, new BiomeType(type));
-            if (bukkitAdapter != null) {
-                biomeType.setLegacyId(bukkitAdapter.getInternalBiomeId(biomeType));
-            }
+
+            biomeType.setLegacyId(entry.getIntKey());
         }
         // Block & Item
         /*for (Material material : Material.values()) {
@@ -239,20 +235,6 @@ public class WorldEditPlugin extends PluginBase {
         WeatherTypes.get("");
     }
 
-    private void setupTags() {
-        // Tags
-        try {
-            for (Tag<Material> blockTag : Bukkit.getTags(Tag.REGISTRY_BLOCKS, Material.class)) {
-                BlockCategory.REGISTRY.register(blockTag.getKey().toString(), new BlockCategory(blockTag.getKey().toString()));
-            }
-            for (Tag<Material> itemTag : Bukkit.getTags(Tag.REGISTRY_ITEMS, Material.class)) {
-                ItemCategory.REGISTRY.register(itemTag.getKey().toString(), new ItemCategory(itemTag.getKey().toString()));
-            }
-        } catch (NoSuchMethodError ignored) {
-            getLogger().warn("The version of Spigot/Paper you are using doesn't support Tags. The usage of tags with WorldEdit will not work until you update.");
-        }
-    }
-
     private void rename() {
         File dir = new File(getDataFolder().getParentFile(), "FastAsyncWorldEdit");
         try {
@@ -273,15 +255,15 @@ public class WorldEditPlugin extends PluginBase {
             Plugin plugin = getServer().getPluginManager().getPlugin("FastAsyncWorldEdit");
             File dummy = MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, "DummyFawe.jar");
             if (dummy != null && dummy.exists() && plugin == this) {
-                try {
-                    getServer().getPluginManager().loadPlugin(dummy);
-                } catch (Throwable e) {
-                    if (getServer().getUpdateFolderFile().mkdirs()) {
-                        MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, getServer().getUpdateFolder() + File.separator + "DummyFawe.jar");
-                    } else {
-                        getLogger().info("Please delete DummyFawe.jar and restart");
-                    }
-                }
+//                try {
+//                    getServer().getPluginManager().loadPlugin(dummy);
+//                } catch (Throwable e) {
+//                    if (getServer().getUpdateFolderFile().mkdirs()) {
+//                        MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, getServer().getUpdateFolder() + File.separator + "DummyFawe.jar");
+//                    } else {
+//                        getLogger().info("Please delete DummyFawe.jar and restart");
+//                    }
+//                }
                 getLogger().info("Please restart the server if you have any plugins which depend on FAWE.");
             } else if (dummy == null) {
                 MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, "update" + File.separator + "DummyFawe.jar");
@@ -410,7 +392,7 @@ public class WorldEditPlugin extends PluginBase {
      * @param player a player
      * @return a session
      */
-    public LocalSession getSession(Player player) {
+    public LocalSession getSession(org.cloudburstmc.server.player.Player player) {
         return WorldEdit.getInstance().getSessionManager().get(wrapPlayer(player));
     }
 
@@ -479,7 +461,7 @@ public class WorldEditPlugin extends PluginBase {
                 wePlayer = getCachedPlayer(player);
                 if (wePlayer == null) {
                     wePlayer = new CloudburstPlayer(this, player);
-                    player.setMetadata("WE", new FixedMetadataValue(this, wePlayer));
+//                    player.setMetadata("WE", new MetadataValue(this, wePlayer));
                     return wePlayer;
                 }
             }
@@ -497,10 +479,10 @@ public class WorldEditPlugin extends PluginBase {
 
     public Actor wrapCommandSender(CommandSender sender) {
         if (sender instanceof Player) {
-            return wrapPlayer((Player) sender);
-        } else if (config.commandBlockSupport && sender instanceof BlockCommandSender) {
+            return wrapPlayer((org.cloudburstmc.server.player.Player) sender);
+        } /*else if (config.commandBlockSupport && sender instanceof BlockCommandSender) {
             return new CloudburstBlockCommandSender(this, (BlockCommandSender) sender);
-        }
+        } FIXME: No command blocks in Cloudburst currently */
 
         return new CloudburstCommandSender(this, sender);
     }
@@ -528,21 +510,11 @@ public class WorldEditPlugin extends PluginBase {
         return checkNotNull(INSTANCE);
     }
 
-    /**
-     * Get the Bukkit implementation adapter.
-     *
-     * @return the adapter
-     */
-    @Nullable
-    public CloudburstImplAdapter getAdapter() {
-        return bukkitAdapter;
-    }
-
     private class WorldInitListener implements Listener {
         private boolean loaded = false;
 
         @EventHandler(priority = EventPriority.LOWEST)
-        public void onWorldInit(@SuppressWarnings("unused") WorldInitEvent event) {
+        public void onWorldInit(@SuppressWarnings("unused") LevelInitEvent event) {
             if (loaded) {
                 return;
             }

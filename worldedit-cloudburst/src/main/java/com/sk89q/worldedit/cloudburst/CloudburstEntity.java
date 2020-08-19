@@ -19,7 +19,8 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
+import com.nukkitx.nbt.NbtMap;
+import com.nukkitx.nbt.NbtMapBuilder;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Entity;
 import com.sk89q.worldedit.entity.metadata.EntityProperties;
@@ -97,13 +98,11 @@ public class CloudburstEntity implements Entity {
             if (entity instanceof Player) {
                 return null;
             }
+            com.sk89q.worldedit.world.entity.EntityType type = CloudburstAdapter.adapt(entity.getType());
 
-            CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-            if (adapter != null) {
-                return adapter.getEntity(entity);
-            } else {
-                return null;
-            }
+            NbtMapBuilder tag = NbtMap.builder();
+            entity.saveAdditionalData(tag);
+            return new BaseEntity(type, CloudburstAdapter.adapt(tag.build()));
         } else {
             return null;
         }

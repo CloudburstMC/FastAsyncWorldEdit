@@ -22,14 +22,17 @@ package com.sk89q.worldedit.cloudburst;
 import com.boydti.fawe.beta.IChunkGet;
 import com.boydti.fawe.beta.implementation.packet.ChunkPacket;
 import com.google.common.collect.ImmutableSet;
+import com.nukkitx.math.vector.Vector3f;
 import com.nukkitx.math.vector.Vector3i;
+import com.nukkitx.protocol.bedrock.data.LevelEventType;
+import com.nukkitx.protocol.bedrock.packet.LevelEventPacket;
 import com.sk89q.jnbt.CompoundTag;
 import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.MaxChangedBlocksException;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.blocks.BaseItem;
 import com.sk89q.worldedit.blocks.BaseItemStack;
-import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.entity.BaseEntity;
 import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.math.BlockVector2;
@@ -39,6 +42,7 @@ import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.Direction;
 import com.sk89q.worldedit.util.SideEffect;
 import com.sk89q.worldedit.util.SideEffectSet;
+import com.sk89q.worldedit.util.TreeGenerator;
 import com.sk89q.worldedit.world.AbstractWorld;
 import com.sk89q.worldedit.world.WorldUnloadedException;
 import com.sk89q.worldedit.world.biome.BiomeType;
@@ -53,12 +57,16 @@ import org.cloudburstmc.server.block.BlockState;
 import org.cloudburstmc.server.blockentity.BlockEntity;
 import org.cloudburstmc.server.blockentity.Chest;
 import org.cloudburstmc.server.entity.Entity;
+import org.cloudburstmc.server.entity.EntityType;
 import org.cloudburstmc.server.inventory.DoubleChestInventory;
 import org.cloudburstmc.server.inventory.Inventory;
 import org.cloudburstmc.server.inventory.InventoryHolder;
+import org.cloudburstmc.server.item.Item;
 import org.cloudburstmc.server.level.Level;
+import org.cloudburstmc.server.level.Location;
 import org.cloudburstmc.server.potion.Effect;
 import org.cloudburstmc.server.registry.BiomeRegistry;
+import org.cloudburstmc.server.registry.EntityRegistry;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 
@@ -77,12 +85,13 @@ public class CloudburstWorld extends AbstractWorld {
 
     private static final Logger logger = WorldEdit.logger;
 
-    private static final Int2ObjectMap<Effect> EFFECTS = new Int2ObjectOpenHashMap<>();
+    private static final Int2ObjectMap<LevelEventType> EFFECTS = new Int2ObjectOpenHashMap<>();
 
     static {
-        for (Effect effect : getEffects()) {
-            int id = effect.getId();
-            EFFECTS.put(id, effect);
+        for (LevelEventType type : LevelEventType.values()) {
+            if (type.name().startsWith("PARTICLE_")) {
+                EFFECTS.putIfAbsent(type.ordinal(), type);
+            }
         }
     }
 
@@ -135,26 +144,11 @@ public class CloudburstWorld extends AbstractWorld {
     @Nullable
     @Override
     public com.sk89q.worldedit.entity.Entity createEntity(com.sk89q.worldedit.util.Location location, BaseEntity entity) {
-        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-        if (adapter != null) {
-            try {
-                Entity createdEntity = adapter.createEntity(CloudburstAdapter.adapt(getWorld(), location), entity);
-                if (createdEntity != null) {
-                    return new CloudburstEntity(createdEntity);
-                } else {
-                    return null;
-                }
-            } catch (Exception e) {
-                logger.warn("Corrupt entity found when creating: " + entity.getType().getId());
-                if (entity.getNbtData() != null) {
-                    logger.warn(entity.getNbtData().toString());
-                }
-                e.printStackTrace();
-                return null;
-            }
-        } else {
-            return null;
-        }
+        EntityType<?> type = CloudburstAdapter.adapt(entity.getType());
+        Location cloudLocation = CloudburstAdapter.adapt(location);
+        Entity cloudEntity = EntityRegistry.get().newEntity(type, cloudLocation);
+        if (cloudEntity == null) return null;
+        return CloudburstAdapter.adapt(cloudEntity);
     }
 
     /**
@@ -208,16 +202,17 @@ public class CloudburstWorld extends AbstractWorld {
 
     @Override
     public boolean regenerate(Region region, EditSession editSession) {
-        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-        try {
-            if (adapter != null) {
-                return adapter.regenerate(getWorld(), region, editSession);
-            } else {
-                throw new UnsupportedOperationException("Missing BukkitImplAdapater for this version.");
-            }
-        } catch (Exception e) {
-            logger.warn("Regeneration via adapter failed.", e);
-        }
+        logger.info("Unsupported operation regenerate() !!!");
+//        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
+//        try {
+//            if (adapter != null) {
+//                return adapter.regenerate(getWorld(), region, editSession);
+//            } else {
+//                throw new UnsupportedOperationException("Missing BukkitImplAdapater for this version.");
+//            }
+//        } catch (Exception e) {
+//            logger.warn("Regeneration via adapter failed.", e);
+//        }
         /*
         BaseBlock[] history = new BaseBlock[16 * 16 * (getMaxY() + 1)];
 
@@ -262,6 +257,11 @@ public class CloudburstWorld extends AbstractWorld {
         return true;
          */
         return editSession.regenerate(region);
+    }
+
+    @Override
+    public boolean generateTree(TreeGenerator.TreeType type, EditSession editSession, BlockVector3 position) throws MaxChangedBlocksException {
+        return false; // FIXME: We don't have a proper way to generate trees in cloudburst yet
     }
 
     /**
@@ -408,12 +408,18 @@ public class CloudburstWorld extends AbstractWorld {
     public boolean playEffect(Vector3 position, int type, int data) {
         Level world = getWorld();
 
-        final Effect effect = EFFECTS.get(type);
-        if (effect == null) {
+        final LevelEventType eventType = EFFECTS.get(type);
+        if (eventType == null) {
             return false;
         }
+        Location location = CloudburstAdapter.adapt(world, position);
 
-        world.addParticleEffect(CloudburstAdapter.adapt(world, position).getPosition(), effect, data);
+        LevelEventPacket packet = new LevelEventPacket();
+        packet.setPosition(location.getPosition());
+        packet.setType(eventType);
+        packet.setData(data);
+
+        world.addChunkPacket(location.getPosition(), packet);
 
         return true;
     }
@@ -477,18 +483,8 @@ public class CloudburstWorld extends AbstractWorld {
 
     @Override
     public com.sk89q.worldedit.world.block.BlockState getBlock(BlockVector3 position) {
-        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-        if (adapter != null) {
-            try {
-                return adapter.getBlock(CloudburstAdapter.adapt(getWorld(), position)).toImmutableState();
-            } catch (Exception e) {
-                if (!hasWarnedImplError) {
-                    hasWarnedImplError = true;
-                    logger.warn("Unable to retrieve block via impl adapter", e);
-                }
-            }
-        }
-        BlockState state = getWorld().getBlockAt(position.getBlockX(), position.getBlockY(), position.getBlockZ());
+        BlockState state = this.getWorld().getBlockAt(position.getBlockX(), position.getBlockY(), position.getBlockZ());
+
         return CloudburstAdapter.adapt(state);
     }
 
@@ -528,7 +524,7 @@ public class CloudburstWorld extends AbstractWorld {
     @Override
     public boolean useItem(BlockVector3 position, BaseItem item, Direction face) {
         getWorld().useItemOn(Vector3i.from(position.getX(), position.getY(), position.getZ()),
-                CloudburstAdapter.adapt(item), CloudburstAdapter.adapt(face));
+                Item.get(CloudburstAdapter.adapt(item.getType())), CloudburstAdapter.adapt(face), Vector3f.ZERO);
 
         return false;
     }

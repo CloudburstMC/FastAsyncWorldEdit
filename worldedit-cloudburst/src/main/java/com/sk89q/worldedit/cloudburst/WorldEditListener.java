@@ -35,6 +35,11 @@ import org.cloudburstmc.server.event.player.PlayerCommandPreprocessEvent;
 import org.cloudburstmc.server.event.player.PlayerGameModeChangeEvent;
 import org.cloudburstmc.server.event.player.PlayerInteractEvent;
 import org.cloudburstmc.server.event.player.PlayerInteractEvent.Action;
+import org.cloudburstmc.server.registry.CommandRegistry;
+import org.enginehub.piston.CommandManager;
+import org.enginehub.piston.inject.InjectedValueStore;
+import org.enginehub.piston.inject.Key;
+import org.enginehub.piston.inject.MapBackedValueStore;
 
 import java.util.Optional;
 
@@ -70,12 +75,13 @@ public class WorldEditListener implements Listener {
         store.injectValue(Key.of(Actor.class), context ->
                 Optional.of(plugin.wrapCommandSender(event.getPlayer())));
         CommandManager commandManager = plugin.getWorldEdit().getPlatformManager().getPlatformCommandManager().getCommandManager();
-        event.getCommands().removeIf(name ->
-                // remove if in the manager and not satisfied
-                commandManager.getCommand(name)
-                        .filter(command -> !command.getCondition().satisfied(store))
-                        .isPresent()
-        );
+        CommandRegistry.get().getCommand(event.getEventName());
+
+        if (commandManager.getCommand(event.getMessage())
+                .filter(command -> !command.getCondition().satisfied(store))
+                .isPresent()) {
+            event.setMessage("");
+        }
     }
 
     /**

@@ -58,14 +58,7 @@ public class CloudburstServerInterface extends AbstractPlatform implements Multi
         this.plugin = plugin;
         this.server = server;
         this.dynamicCommands = new CommandRegistration(plugin);
-        this.watchdog = LazyReference.from(() -> {
-            if (plugin.getAdapter() != null) {
-                return plugin.getAdapter().supportsWatchdog()
-                        ? new CloudburstWatchdog(plugin.getAdapter())
-                        : null;
-            }
-            return null;
-        });
+        this.watchdog = LazyReference.from(() -> null);
     }
 
     CommandRegistration getDynamicCommands() {
@@ -83,17 +76,11 @@ public class CloudburstServerInterface extends AbstractPlatform implements Multi
 
     @Override
     public int getDataVersion() {
-        if (plugin.getAdapter() != null) {
-            return plugin.getAdapter().getDataVersion();
-        }
         return -1;
     }
 
     @Override
     public DataFixer getDataFixer() {
-        if (plugin.getAdapter() != null) {
-            return plugin.getAdapter().getDataFixer();
-        }
         return null;
     }
 
@@ -222,9 +209,6 @@ public class CloudburstServerInterface extends AbstractPlatform implements Multi
 
     @Override
     public Set<SideEffect> getSupportedSideEffects() {
-        if (plugin.getAdapter() != null) {
-            return plugin.getAdapter().getSupportedSideEffects();
-        }
         return SUPPORTED_SIDE_EFFECTS;
     }
 

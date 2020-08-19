@@ -19,7 +19,6 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.worldedit.cloudburst.adapter.CloudburstImplAdapter;
 import com.sk89q.worldedit.registry.state.Property;
 import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.world.block.BlockState;
@@ -27,125 +26,66 @@ import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.registry.BlockMaterial;
 import com.sk89q.worldedit.world.registry.BundledBlockRegistry;
 import com.sk89q.worldedit.world.registry.PassthroughBlockMaterial;
-import org.cloudburstmc.server.block.BlockCategories;
-import org.cloudburstmc.server.block.BlockCategory;
+import org.cloudburstmc.server.block.BlockStates;
+import org.cloudburstmc.server.registry.BlockRegistry;
 import org.cloudburstmc.server.utils.Identifier;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalInt;
 
-import static org.cloudburstmc.server.block.BlockTypes.AIR;
-
 public class CloudburstBlockRegistry extends BundledBlockRegistry {
 
-    private CloudburstBlockMaterial[] materialMap;
+    private final Map<org.cloudburstmc.server.block.BlockState, CloudburstBlockMaterial> materialMap = new HashMap<>();
 
     @Override
     public Component getRichName(BlockType blockType) {
-        if (WorldEditPlugin.getInstance().getAdapter() != null) {
-            return WorldEditPlugin.getInstance().getAdapter().getRichBlockName(blockType);
-        }
         return super.getRichName(blockType);
     }
 
-    @Nullable
     @Override
     public BlockMaterial getMaterial(BlockType blockType) {
-        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-        if (adapter != null) {
-            BlockMaterial result = adapter.getMaterial(blockType);
-            if (result != null) {
-                return result;
-            }
+        org.cloudburstmc.server.block.BlockState block = BlockRegistry.get().getBlock(Identifier.fromString(blockType.getId()));
+        if (block == null) {
+            return null;
         }
-        Identifier mat = CloudburstAdapter.adapt(blockType);
-        if (mat == null) {
-            return new PassthroughBlockMaterial(null);
-        }
-        if (materialMap == null) {
-            materialMap = new CloudburstBlockMaterial[Material.values().length];
-        }
-        CloudburstBlockMaterial result = materialMap[mat.ordinal()];
-        if (result == null) {
-            result = new CloudburstBlockMaterial(CloudburstBlockRegistry.super.getMaterial(blockType), mat);
-            materialMap[mat.ordinal()] = result;
-        }
-        return result;
+        return materialMap.computeIfAbsent(block, material -> new CloudburstBlockMaterial(CloudburstBlockRegistry.super.getMaterial(blockType), block));
     }
 
-    @Nullable
+
+    //TODO
     @Override
-    public BlockMaterial getMaterial(BlockState state) {
-        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-        if (adapter != null) {
-            BlockMaterial result = adapter.getMaterial(state);
-            if (result != null) {
-                return result;
-            }
-        }
-        return super.getMaterial(state);
+    public Map<String, ? extends Property<?>> getProperties(BlockType blockType) {
+        return super.getProperties(blockType);
     }
 
     @Override
     public OptionalInt getInternalBlockStateId(BlockState state) {
-        if (WorldEditPlugin.getInstance().getAdapter() != null) {
-            return WorldEditPlugin.getInstance().getAdapter().getInternalBlockStateId(state);
-        }
-        return OptionalInt.empty();
-    }
-
-    @Nullable
-    @Override
-    public Map<String, ? extends Property<?>> getProperties(BlockType blockType) {
-        CloudburstImplAdapter adapter = WorldEditPlugin.getInstance().getAdapter();
-        if (adapter != null) {
-            return adapter.getProperties(blockType);
-        }
-        return super.getProperties(blockType);
+        return OptionalInt.of(BlockRegistry.get().getRuntimeId(CloudburstAdapter.adapt(state)));
     }
 
     public static class CloudburstBlockMaterial extends PassthroughBlockMaterial {
 
-        private final Identifier material;
+        private final org.cloudburstmc.server.block.BlockState block;
 
-        public CloudburstBlockMaterial(@Nullable BlockMaterial material, Identifier bukkitMaterial) {
+        public CloudburstBlockMaterial(BlockMaterial material, org.cloudburstmc.server.block.BlockState cloudburstBlock) {
             super(material);
-            this.material = bukkitMaterial;
+            this.block = cloudburstBlock;
         }
 
         @Override
         public boolean isAir() {
-            return material == AIR;
+            return block == BlockStates.AIR;
         }
 
         @Override
         public boolean isSolid() {
-            return BlockCategories.inCategory(material, BlockCategory.SOLID);
+            return block.getBehavior().isSolid();
         }
 
         @Override
         public boolean isBurnable() {
-            return material.isBurnable();
+            return block.getBehavior().getBurnAbility() > 0;
         }
-
-        @Override
-        public boolean isTranslucent() {
-            return BlockCategories.inCategory(material, BlockCategory.TRANSPARENT);
-        }
-    }
-
-    @Override
-    public Collection<String> values() {
-        ArrayList<String> blocks = new ArrayList<>();
-        for (Material m : Material.values()) {
-            if (!m.isLegacy() && m.isBlock()) {
-                BlockData blockData = m.createBlockData();
-                blocks.add(blockData.getAsString());
-            }
-        }
-        return blocks;
     }
 }

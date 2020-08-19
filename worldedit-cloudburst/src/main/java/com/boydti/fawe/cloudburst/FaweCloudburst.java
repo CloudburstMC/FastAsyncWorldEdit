@@ -4,7 +4,6 @@ import com.boydti.fawe.Fawe;
 import com.boydti.fawe.IFawe;
 import com.boydti.fawe.beta.implementation.cache.preloader.Preloader;
 import com.boydti.fawe.beta.implementation.queue.QueueHandler;
-import com.boydti.fawe.bukkit.listener.CFIPacketListener;
 import com.boydti.fawe.cloudburst.adapter.CloudburstQueueHandler;
 import com.boydti.fawe.cloudburst.listener.BrushListener;
 import com.boydti.fawe.cloudburst.listener.ChunkListener9;
@@ -41,7 +40,7 @@ public class FaweCloudburst implements IFawe, Listener {
     private final Plugin plugin;
     private ItemUtil itemUtil;
 
-    private CFIPacketListener packetListener;
+//    private CFIPacketListener packetListener;
     private final boolean chunksStretched;
 
     public FaweCloudburst(Plugin plugin) {
@@ -90,9 +89,9 @@ public class FaweCloudburst implements IFawe, Listener {
 
     @Override
     public synchronized ImageViewer getImageViewer(com.sk89q.worldedit.entity.Player player) {
-        if (listeningImages && imageListener == null) {
-            return null;
-        }
+//        if (listeningImages && imageListener == null) {
+//            return null;
+//        }
         try {
             listeningImages = true;
             registerPacketListener();
@@ -186,7 +185,7 @@ public class FaweCloudburst implements IFawe, Listener {
     public void onWorldLoad(LevelLoadEvent event) {
         if (keepUnloaded) {
             Level world = event.getLevel();
-            world.setKeepSpawnInMemory(false);
+//            world.setKeepSpawnInMemory(false);
         }
     }
 
