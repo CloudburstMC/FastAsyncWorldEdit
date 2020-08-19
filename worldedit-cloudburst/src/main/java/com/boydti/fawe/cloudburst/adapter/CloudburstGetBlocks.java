@@ -6,10 +6,8 @@ import com.boydti.fawe.beta.IChunkSet;
 import com.boydti.fawe.beta.implementation.blocks.CharBlocks;
 import com.boydti.fawe.beta.implementation.blocks.CharGetBlocks;
 import com.boydti.fawe.beta.implementation.queue.QueueHandler;
-import com.boydti.fawe.cloudburst.adapter.mc1161.BukkitAdapter1161;
 import com.boydti.fawe.config.Settings;
 import com.boydti.fawe.object.collection.AdaptedMap;
-import com.boydti.fawe.object.collection.BitArrayUnstretched;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterables;
 import com.nukkitx.math.vector.Vector3i;
@@ -17,20 +15,23 @@ import com.nukkitx.nbt.NbtMap;
 import com.nukkitx.nbt.NbtMapBuilder;
 import com.sk89q.jnbt.*;
 import com.sk89q.worldedit.cloudburst.CloudburstAdapter;
-import com.sk89q.worldedit.cloudburst.adapter.impl.FAWESpigotV116R1;
 import com.sk89q.worldedit.internal.Constants;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.biome.BiomeType;
-import com.sk89q.worldedit.world.block.BlockTypes;
+import it.unimi.dsi.fastutil.ints.IntList;
+import org.cloudburstmc.server.block.BlockState;
 import org.cloudburstmc.server.blockentity.BlockEntity;
 import org.cloudburstmc.server.entity.Entity;
 import org.cloudburstmc.server.entity.EntityType;
 import org.cloudburstmc.server.level.Level;
 import org.cloudburstmc.server.level.Location;
 import org.cloudburstmc.server.level.biome.Biome;
+import org.cloudburstmc.server.level.chunk.BlockStorage;
 import org.cloudburstmc.server.level.chunk.Chunk;
 import org.cloudburstmc.server.level.chunk.ChunkSection;
+import org.cloudburstmc.server.level.chunk.bitarray.BitArray;
 import org.cloudburstmc.server.registry.BiomeRegistry;
+import org.cloudburstmc.server.registry.BlockRegistry;
 import org.cloudburstmc.server.registry.EntityRegistry;
 import org.cloudburstmc.server.utils.Identifier;
 import org.cloudburstmc.server.utils.NibbleArray;
@@ -38,9 +39,11 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -133,15 +136,9 @@ public class CloudburstGetBlocks extends CharGetBlocks {
 
     @Override
     public Set<CompoundTag> getEntities() {
-
-        List<Entity>[] slices = this.getChunk().getEntitySlices();
-        int size = 0;
-        for (List<Entity> slice : slices) {
-            if (slice != null) {
-                size += slice.size();
-            }
-        }
-        if (slices.length == 0) {
+        Set<Entity> entities = this.getChunk().getEntities();
+        int size = entities.size();
+        if (size == 0) {
             return Collections.emptySet();
         }
         int finalSize = size;
@@ -164,23 +161,20 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 CompoundTag getTag = (CompoundTag) get;
                 Map<String, Tag> value = getTag.getValue();
                 long uniqueId = ((LongTag) value.get("UniqueId")).getValue();
-                for (List<Entity> slice : slices) {
-                    if (slice != null) {
-                        for (Entity entity : slice) {
-                            long id = entity.getUniqueId();
-                            if (id == uniqueId) {
-                                return true;
-                            }
-                        }
+                for (Entity entity : CloudburstGetBlocks.this.getChunk().getEntities()) {
+                    long id = entity.getUniqueId();
+                    if (id == uniqueId) {
+                        return true;
                     }
                 }
+
                 return false;
             }
 
             @NotNull
             @Override
             public Iterator<CompoundTag> iterator() {
-                Iterable<CompoundTag> result = Iterables.transform(Iterables.concat(slices), input -> {
+                Iterable<CompoundTag> result = Iterables.transform(Iterables.concat(entities), input -> {
                     NbtMapBuilder builder = NbtMap.builder();
                     input.saveAdditionalData(builder);
                     return (CompoundTag) CloudburstAdapter.adapt(builder.build());
@@ -272,14 +266,16 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                             }
                         }
                     }
-                    BukkitAdapter1161.fieldTickingBlockCount.set(existingSection, (short) 0);
+
+                    // FIXME: We don't have this in cloudburst
+//                    BukkitAdapter1161.fieldTickingBlockCount.set(existingSection, (short) 0);
 
                     //ensure that the server doesn't try to tick the chunksection while we're editing it.
-                    DelegateLock lock = BukkitAdapter1161.applyLock(existingSection);
+                    Lock lock = this.getChunk().writeLockable();
 
                     synchronized (this) {
-                        synchronized (lock) {
-                            lock.untilFree();
+                        lock.lock();
+                        try {
                             if (this.cloudChunk != chunk) {
                                 this.cloudChunk = chunk;
                                 this.sections = null;
@@ -289,17 +285,15 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                                 this.reset();
                             } else if (!Arrays.equals(this.update(layer, new char[4096]), this.load(layer))) {
                                 this.reset(layer);
-                            } else if (lock.isModified()) {
-                                this.reset(layer);
                             }
-                            newSection = BukkitAdapter1161
-                                    .newChunkSection(layer, this::load, setArr, fastmode);
-                            if (!BukkitAdapter1161
-                                    .setSectionAtomic(sections, existingSection, newSection, layer)) {
+                            newSection = CloudburstAdapter.newChunkSection(layer, this::load, setArr, fastmode);
+                            if (!CloudburstAdapter.setSectionAtomic(sections, existingSection, newSection, layer)) {
                                 log.error("Failed to set chunk section:" + chunkX + "," + chunkZ + " layer: " + layer);
                             } else {
                                 this.updateGet(this, chunk, sections, newSection, setArr, layer);
                             }
+                        } finally {
+                            lock.unlock();
                         }
                     }
                 }
@@ -308,15 +302,14 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 BiomeType[] biomes = set.getBiomes();
                 if (biomes != null) {
                     // set biomes
-                    BiomeStorage currentBiomes = chunk.getBiomeIndex();
                     for (int z = 0, i = 0; z < 16; z++) {
                         for (int x = 0; x < 16; x++, i++) {
                             final BiomeType biome = biomes[i];
                             if (biome != null) {
-                                final Biome craftBiome = BukkitAdapter.adapt(biome);
-                                BiomeBase nmsBiome = CraftBlock.biomeToBiomeBase(craftBiome);
+                                final Biome cloudBiome = CloudburstAdapter.adapt(biome);
+
                                 for (int y = 0; y < FaweCache.IMP.worldHeight; y++) {
-                                    currentBiomes.setBiome(x >> 2, y >> 2, z >> 2, nmsBiome);
+                                    chunk.setBiome(x >> 2, z >> 2, BiomeRegistry.get().getRuntimeId(cloudBiome));
                                 }
                             }
                         }
@@ -330,7 +323,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 if (light != null) {
                     lightUpdate = true;
                     try {
-                        this.fillLightNibble(light, EnumSkyBlock.BLOCK);
+                        this.fillLightNibble(light, false);
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }
@@ -340,7 +333,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 if (skyLight != null) {
                     lightUpdate = true;
                     try {
-                        this.fillLightNibble(skyLight, EnumSkyBlock.SKY);
+                        this.fillLightNibble(skyLight, true);
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }
@@ -358,20 +351,20 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     }
 
                     syncTasks[2] = () -> {
-                        final List<Entity>[] entities = chunk.getEntitySlices();
+                        final Set<Entity> entities = chunk.getEntities();
 
-                        for (final Collection<Entity> ents : entities) {
-                            if (!ents.isEmpty()) {
-                                final Iterator<Entity> iter = ents.iterator();
-                                while (iter.hasNext()) {
-                                    final Entity entity = iter.next();
-                                    if (entityRemoves.contains(entity.getUniqueID())) {
-                                        iter.remove();
-                                        this.removeEntity(entity);
-                                    }
+
+                        if (!entities.isEmpty()) {
+                            final Iterator<Entity> iter = entities.iterator();
+                            while (iter.hasNext()) {
+                                final Entity entity = iter.next();
+                                if (entityRemoves.contains(new UUID(0, entity.getUniqueId()))) {
+                                    iter.remove();
+                                    this.removeEntity(entity);
                                 }
                             }
                         }
+
                     };
                 }
 
@@ -410,9 +403,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                                         level
                                 ));
                                 if (entity != null) {
-                                    UUID uuid = entity.getUniqueID();
-                                    entityTagMap.put("UUIDMost", new LongTag(uuid.getMostSignificantBits()));
-                                    entityTagMap.put("UUIDLeast", new LongTag(uuid.getLeastSignificantBits()));
+                                    entityTagMap.put("UniqueId", new LongTag(entity.getUniqueId()));
 
                                     final NbtMapBuilder tag = CloudburstAdapter.adapt(nativeTag).toBuilder();
                                     for (final String name : Constants.NO_COPY_ENTITY_NBT_FIELDS) {
@@ -466,11 +457,9 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     boolean finalLightUpdate = lightUpdate;
                     callback = () -> {
                         // Set Modified
-                        chunk.d(true); // Set Modified
-                        chunk.mustNotSave = false;
-                        chunk.markDirty();
+                        chunk.setDirty(); // Set Modified
                         // send to player
-                        BukkitAdapter1161.sendChunk(level, chunkX, chunkZ, finalMask, finalLightUpdate);
+                        CloudburstAdapter.sendChunk(level, chunkX, chunkZ, finalMask, finalLightUpdate);
                         if (finalizer != null) {
                             finalizer.run();
                         }
@@ -520,6 +509,20 @@ public class CloudburstGetBlocks extends CharGetBlocks {
         }
     }
 
+    private static final Field STORAGE_BIT_ARRAY;
+    private static final Field STORAGE_PALETTE;
+
+    static {
+        try {
+            STORAGE_BIT_ARRAY = BlockStorage.class.getDeclaredField("bitArray");
+            STORAGE_BIT_ARRAY.setAccessible(true);
+            STORAGE_PALETTE = BlockStorage.class.getDeclaredField("palette");
+            STORAGE_PALETTE.setAccessible(true);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     @Override
     public synchronized char[] update(int layer, char[] data) {
         ChunkSection section = this.getSections()[layer];
@@ -533,71 +536,30 @@ public class CloudburstGetBlocks extends CharGetBlocks {
             data = new char[4096];
             Arrays.fill(data, (char) 1);
         }
-        DelegateLock lock = BukkitAdapter1161.applyLock(section);
-        synchronized (lock) {
-            lock.untilFree();
-            lock.setModified(false);
+        Lock lock = this.getChunk().writeLockable();
+        lock.lock();
+        try {
             // Efficiently convert ChunkSection to raw data
             try {
-                final DataPaletteBlock<IBlockData> blocks = section.getBlocks();
-                final DataBits bits = (DataBits) BukkitAdapter1161.fieldBits.get(blocks);
-                final DataPalette<IBlockData> palette = (DataPalette<IBlockData>) BukkitAdapter1161.fieldPalette.get(blocks);
+                BlockStorage storage = section.getBlockStorageArray()[0];
+                BitArray array = (BitArray) STORAGE_BIT_ARRAY.get(storage);
+                IntList palette = (IntList) STORAGE_PALETTE.get(storage);
 
-                final int bitsPerEntry = (int) BukkitAdapter1161.fieldBitsPerEntry.get(bits);
-                final long[] blockStates = bits.a();
-
-                new BitArrayUnstretched(bitsPerEntry, blockStates).toRaw(data);
-
-                int num_palette;
-                if (palette instanceof DataPaletteLinear) {
-                    num_palette = ((DataPaletteLinear<IBlockData>) palette).b();
-                } else if (palette instanceof DataPaletteHash) {
-                    num_palette = ((DataPaletteHash<IBlockData>) palette).b();
-                } else {
-                    num_palette = 0;
-                    int[] paletteToBlockInts = FaweCache.IMP.paletteToBlock.get();
-                    char[] paletteToBlockChars = FaweCache.IMP.paletteToBlockChar.get();
-                    try {
-                        for (int i = 0; i < 4096; i++) {
-                            char paletteVal = data[i];
-                            char ordinal = paletteToBlockChars[paletteVal];
-                            if (ordinal == Character.MAX_VALUE) {
-                                paletteToBlockInts[num_palette++] = paletteVal;
-                                IBlockData ibd = palette.a(data[i]);
-                                if (ibd == null) {
-                                    ordinal = BlockTypes.AIR.getDefaultState().getOrdinalChar();
-                                } else {
-                                    ordinal = adapter.adaptToChar(ibd);
-                                }
-                                paletteToBlockChars[paletteVal] = ordinal;
-                            }
-                            // Don't read "empty".
-                            if (ordinal == 0) {
-                                ordinal = 1;
-                            }
-                            data[i] = ordinal;
-                        }
-                    } finally {
-                        for (int i = 0; i < num_palette; i++) {
-                            int paletteVal = paletteToBlockInts[i];
-                            paletteToBlockChars[paletteVal] = Character.MAX_VALUE;
-                        }
-                    }
-                    return data;
-                }
+                int bitsPerEntry = array.getVersion().getId();
+                int num_palette = palette.size();
 
                 char[] paletteToOrdinal = FaweCache.IMP.paletteToBlockChar.get();
                 try {
                     if (num_palette != 1) {
                         for (int i = 0; i < num_palette; i++) {
-                            char ordinal = this.ordinal(palette.a(i), adapter);
+                            char ordinal = this.ordinal(palette.getInt(i));
                             paletteToOrdinal[i] = ordinal;
                         }
                         for (int i = 0; i < 4096; i++) {
                             char paletteVal = data[i];
                             char val = paletteToOrdinal[paletteVal];
                             if (val == Character.MAX_VALUE) {
-                                val = this.ordinal(palette.a(i), adapter);
+                                val = this.ordinal(palette.getInt(i));
                                 paletteToOrdinal[i] = val;
                             }
                             // Don't read "empty".
@@ -607,7 +569,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                             data[i] = val;
                         }
                     } else {
-                        char ordinal = this.ordinal(palette.a(0), adapter);
+                        char ordinal = this.ordinal(palette.getInt(0));
                         // Don't read "empty".
                         if (ordinal == 0) {
                             ordinal = 1;
@@ -624,15 +586,14 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 e.printStackTrace();
                 throw new RuntimeException(e);
             }
+        } finally {
+            lock.unlock();
         }
     }
 
-    private final char ordinal(IBlockData ibd, FAWESpigotV116R1 adapter) {
-        if (ibd == null) {
-            return BlockTypes.AIR.getDefaultState().getOrdinalChar();
-        } else {
-            return adapter.adaptToChar(ibd);
-        }
+    private final char ordinal(int runtimeId) {
+        BlockState state = BlockRegistry.get().getBlock(runtimeId);
+        return CloudburstAdapter.adapt(state).getOrdinalChar();
     }
 
     public ChunkSection[] getSections() {
@@ -662,26 +623,26 @@ public class CloudburstGetBlocks extends CharGetBlocks {
         return tmp;
     }
 
-    private void fillLightNibble(char[][] light, EnumSkyBlock skyBlock) {
-        for (int Y = 0; Y < 16; Y++) {
-            if (light[Y] == null) {
-                continue;
-            }
-            SectionPosition sectionPosition = SectionPosition.a(cloudChunk.getPos(), Y);
-            NibbleArray nibble = world.getChunkProvider().getLightEngine().a(skyBlock).a(sectionPosition);
-            if (nibble == null) {
-                byte[] a = new byte[2048];
-                Arrays.fill(a, skyBlock == EnumSkyBlock.SKY ? (byte) 15 : (byte) 0);
-                nibble = new NibbleArray(a);
-                ((LightEngine) world.getChunkProvider().getLightEngine()).a(skyBlock, sectionPosition, nibble, true);
-            }
-            synchronized (nibble) {
+    private void fillLightNibble(char[][] light, boolean skyLight) {
+        Lock lock = cloudChunk.writeLockable();
+        lock.lock();
+        try {
+            for (int Y = 0; Y < 16; Y++) {
+                if (light[Y] == null) {
+                    continue;
+                }
+                ChunkSection section = cloudChunk.getSection(Y);
+                if (section == null) continue;
+
+                NibbleArray nibble = skyLight ? section.getSkyLightArray() : section.getBlockLightArray();
                 for (int i = 0; i < 4096; i++) {
                     if (light[Y][i] < 16) {
-                        nibble.a(i, light[Y][i]);
+                        nibble.set(i, (byte) light[Y][i]);
                     }
                 }
             }
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -705,20 +666,10 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 }
                 ChunkSection existing = this.getSections()[i];
                 try {
-                    final DataPaletteBlock<IBlockData> blocksExisting = existing.getBlocks();
+                    BlockStorage storage = existing.getBlockStorageArray()[0];
+                    IntList palette = (IntList) STORAGE_PALETTE.get(storage);
 
-                    final DataPalette<IBlockData> palette = (DataPalette<IBlockData>) BukkitAdapter1161.fieldPalette.get(blocksExisting);
-                    int paletteSize;
-
-                    if (palette instanceof DataPaletteLinear) {
-                        paletteSize = ((DataPaletteLinear<IBlockData>) palette).b();
-                    } else if (palette instanceof DataPaletteHash) {
-                        paletteSize = ((DataPaletteHash<IBlockData>) palette).b();
-                    } else {
-                        super.trim(false, i);
-                        continue;
-                    }
-                    if (paletteSize == 1) {
+                    if (palette.size() == 1) {
                         //If the cached palette size is 1 then no blocks can have been changed i.e. do not need to update these chunks.
                         continue;
                     }
