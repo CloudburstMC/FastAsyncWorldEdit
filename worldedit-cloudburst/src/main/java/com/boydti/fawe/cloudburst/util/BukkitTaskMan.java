@@ -14,7 +14,7 @@ public class BukkitTaskMan extends TaskManager {
 
     @Override
     public int repeat(@NotNull final Runnable runnable, final int interval) {
-        return this.plugin.getServer().getScheduler().scheduleDelayedRepeatingTask(this.plugin, runnable, interval, interval).getTaskId();
+        return this.plugin.getServer().getScheduler().scheduleDelayedRepeatingTask(this.plugin, runnable, interval, interval, false).getTaskId().getTaskId();
     }
 
     @SuppressWarnings("deprecation")
@@ -35,7 +35,7 @@ public class BukkitTaskMan extends TaskManager {
 
     @Override
     public void later(@NotNull final Runnable runnable, final int delay) {
-        this.plugin.getServer().getScheduler().scheduleDelayedTask(this.plugin, runnable, delay);
+        this.plugin.getServer().getScheduler().scheduleDelayedTask(this.plugin, runnable, delay, false);
     }
 
     @Override
@@ -46,7 +46,7 @@ public class BukkitTaskMan extends TaskManager {
     @Override
     public void cancel(final int task) {
         if (task != -1) {
-            plugin.getServer().getScheduler().cancelTask(task);
+            this.plugin.getServer().getScheduler().cancelTask(task);
         }
     }
 }

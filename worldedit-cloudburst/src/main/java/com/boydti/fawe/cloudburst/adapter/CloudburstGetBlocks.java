@@ -35,7 +35,6 @@ import org.cloudburstmc.server.registry.EntityRegistry;
 import org.cloudburstmc.server.utils.Identifier;
 import org.cloudburstmc.server.utils.NibbleArray;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -164,13 +163,12 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 }
                 CompoundTag getTag = (CompoundTag) get;
                 Map<String, Tag> value = getTag.getValue();
-                CompoundTag getParts = (CompoundTag) value.get("UUID");
-                UUID getUUID = new UUID(getParts.getLong("Most"), getParts.getLong("Least"));
+                long uniqueId = ((LongTag) value.get("UniqueId")).getValue();
                 for (List<Entity> slice : slices) {
                     if (slice != null) {
                         for (Entity entity : slice) {
-                            UUID uuid = entity.getUniqueId();
-                            if (uuid.equals(getUUID)) {
+                            long id = entity.getUniqueId();
+                            if (id == uniqueId) {
                                 return true;
                             }
                         }
@@ -182,16 +180,10 @@ public class CloudburstGetBlocks extends CharGetBlocks {
             @NotNull
             @Override
             public Iterator<CompoundTag> iterator() {
-                Iterable<CompoundTag> result = Iterables.transform(Iterables.concat(slices), new com.google.common.base.Function<Entity, CompoundTag>() {
-                    @Nullable
-                    @Override
-                    public CompoundTag apply(@Nullable Entity input) {
-                        NbtMapBuilder builder = NbtMap.builder();
-
-                        input.saveAdditionalData(builder);
-
-                        return (CompoundTag) CloudburstAdapter.adapt(builder.build());
-                    }
+                Iterable<CompoundTag> result = Iterables.transform(Iterables.concat(slices), input -> {
+                    NbtMapBuilder builder = NbtMap.builder();
+                    input.saveAdditionalData(builder);
+                    return (CompoundTag) CloudburstAdapter.adapt(builder.build());
                 });
                 return result.iterator();
             }
@@ -226,17 +218,17 @@ public class CloudburstGetBlocks extends CharGetBlocks {
     @Override
     public <T extends Future<T>> T call(IChunkSet set, Runnable finalizer) {
         try {
-            Level nmsWorld = world;
-            Chunk nmsChunk = this.ensureLoaded(chunkX, chunkZ);
+            Level level = world;
+            Chunk chunk = this.ensureLoaded(chunkX, chunkZ);
             boolean fastmode = set.isFastMode() && Settings.IMP.QUEUE.NO_TICK_FASTMODE;
 
             // Remove existing tiles
             {
                 // Create a copy so that we can remove blocks
-                Map<Vector3i, BlockEntity> tiles = new HashMap<>(nmsChunk.getBlockEntities());
-                if (!tiles.isEmpty()) {
-                    for (Map.Entry<Vector3i, BlockEntity> entry : tiles.entrySet()) {
-                        final Vector3i pos = entry.getKey();
+                Set<BlockEntity> blockEntities = chunk.getBlockEntities();
+                if (!blockEntities.isEmpty()) {
+                    for (BlockEntity blockEntity : blockEntities) {
+                        Vector3i pos = blockEntity.getPosition();
                         final int lx = pos.getX() & 15;
                         final int ly = pos.getY();
                         final int lz = pos.getZ() & 15;
@@ -247,16 +239,15 @@ public class CloudburstGetBlocks extends CharGetBlocks {
 
                         int ordinal = set.getBlock(lx, ly, lz).getOrdinal();
                         if (ordinal != 0) {
-                            BlockEntity tile = entry.getValue();
-                            nmsChunk.removeBlockEntity(tile);
+                            chunk.removeBlockEntity(blockEntity);
                         }
                     }
                 }
             }
 
             int bitMask = 0;
-            synchronized (nmsChunk) {
-                ChunkSection[] sections = nmsChunk.getSections();
+            synchronized (chunk) {
+                ChunkSection[] sections = chunk.getSections();
 
                 for (int layer = 0; layer < 16; layer++) {
                     if (!set.hasSection(layer)) {
@@ -271,7 +262,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     if (existingSection == null) {
                         newSection = CloudburstAdapter.newChunkSection(layer, setArr, fastmode);
                         if (CloudburstAdapter.setSectionAtomic(sections, null, newSection, layer)) {
-                            this.updateGet(this, nmsChunk, sections, newSection, setArr, layer);
+                            this.updateGet(this, chunk, sections, newSection, setArr, layer);
                             continue;
                         } else {
                             existingSection = sections[layer];
@@ -289,8 +280,8 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     synchronized (this) {
                         synchronized (lock) {
                             lock.untilFree();
-                            if (this.cloudChunk != nmsChunk) {
-                                this.cloudChunk = nmsChunk;
+                            if (this.cloudChunk != chunk) {
+                                this.cloudChunk = chunk;
                                 this.sections = null;
                                 this.reset();
                             } else if (existingSection != this.getSections()[layer]) {
@@ -307,7 +298,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                                     .setSectionAtomic(sections, existingSection, newSection, layer)) {
                                 log.error("Failed to set chunk section:" + chunkX + "," + chunkZ + " layer: " + layer);
                             } else {
-                                this.updateGet(this, nmsChunk, sections, newSection, setArr, layer);
+                                this.updateGet(this, chunk, sections, newSection, setArr, layer);
                             }
                         }
                     }
@@ -317,7 +308,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 BiomeType[] biomes = set.getBiomes();
                 if (biomes != null) {
                     // set biomes
-                    BiomeStorage currentBiomes = nmsChunk.getBiomeIndex();
+                    BiomeStorage currentBiomes = chunk.getBiomeIndex();
                     for (int z = 0, i = 0; z < 16; z++) {
                         for (int x = 0; x < 16; x++, i++) {
                             final BiomeType biome = biomes[i];
@@ -367,7 +358,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     }
 
                     syncTasks[2] = () -> {
-                        final List<Entity>[] entities = nmsChunk.getEntitySlices();
+                        final List<Entity>[] entities = chunk.getEntitySlices();
 
                         for (final Collection<Entity> ents : entities) {
                             if (!ents.isEmpty()) {
@@ -416,7 +407,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                                         z,
                                         yaw,
                                         pitch,
-                                        nmsWorld
+                                        level
                                 ));
                                 if (entity != null) {
                                     UUID uuid = entity.getUniqueID();
@@ -452,11 +443,11 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                             final int z = blockHash.getZ() + bz;
                             final Vector3i pos = Vector3i.from(x, y, z);
 
-                            synchronized (nmsWorld) {
-                                BlockEntity tileEntity = nmsWorld.getBlockEntity(pos);
+                            synchronized (level) {
+                                BlockEntity tileEntity = level.getBlockEntity(pos);
                                 if (tileEntity != null && tileEntity.isClosed()) {
-                                    nmsWorld.removeBlockEntity(tileEntity);
-                                    tileEntity = nmsWorld.getBlockEntity(pos);
+                                    level.removeBlockEntity(tileEntity);
+                                    tileEntity = level.getBlockEntity(pos);
                                 }
                                 if (tileEntity != null) {
                                     final NbtMap tag = CloudburstAdapter.adapt(nativeTag);
@@ -475,11 +466,11 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                     boolean finalLightUpdate = lightUpdate;
                     callback = () -> {
                         // Set Modified
-                        nmsChunk.d(true); // Set Modified
-                        nmsChunk.mustNotSave = false;
-                        nmsChunk.markDirty();
+                        chunk.d(true); // Set Modified
+                        chunk.mustNotSave = false;
+                        chunk.markDirty();
                         // send to player
-                        BukkitAdapter1161.sendChunk(nmsWorld, chunkX, chunkZ, finalMask, finalLightUpdate);
+                        BukkitAdapter1161.sendChunk(level, chunkX, chunkZ, finalMask, finalLightUpdate);
                         if (finalizer != null) {
                             finalizer.run();
                         }

@@ -48,7 +48,8 @@ public class PluginPreloader extends PluginBase {
                 Fawe.get().getQueueHandler().sync(() -> {
                     for (int i = 0; i < index && iter.hasNext(); i++) {
                         BlockVector2 chunk = iter.next();
-                        world.removePluginChunkTicket(chunk.getX(), chunk.getZ(), this);
+                        // FIXME: Not sure what this does but we need to add support
+//                        world.removePluginChunkTicket(chunk.getX(), chunk.getZ(), this);
                     }
                 });
             }
@@ -78,7 +79,8 @@ public class PluginPreloader extends PluginBase {
                 for (; iter.hasNext() && invalidator.get(); index++) {
                     BlockVector2 chunk = iter.next();
                     if (!world.isChunkLoaded(chunk.getX(), chunk.getZ())) {
-                        world.addPluginChunkTicket(chunk.getX(), chunk.getZ(), this);
+                        // FIXME: Not sure what this does but we need to add support
+//                        world.addPluginChunkTicket(chunk.getX(), chunk.getZ(), this);
                     }
                 }
             });

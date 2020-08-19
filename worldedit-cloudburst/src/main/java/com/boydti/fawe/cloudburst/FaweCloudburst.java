@@ -10,6 +10,7 @@ import com.boydti.fawe.cloudburst.listener.BrushListener;
 import com.boydti.fawe.cloudburst.listener.ChunkListener9;
 import com.boydti.fawe.cloudburst.util.BukkitTaskMan;
 import com.boydti.fawe.cloudburst.util.ItemUtil;
+import com.boydti.fawe.cloudburst.util.image.CloudburstImageViewer;
 import com.boydti.fawe.config.Settings;
 import com.boydti.fawe.regions.FaweMaskManager;
 import com.boydti.fawe.util.TaskManager;
@@ -89,6 +90,37 @@ public class FaweCloudburst implements IFawe, Listener {
 
     @Override
     public synchronized ImageViewer getImageViewer(com.sk89q.worldedit.entity.Player player) {
+        if (listeningImages && imageListener == null) {
+            return null;
+        }
+        try {
+            listeningImages = true;
+            registerPacketListener();
+            PluginManager manager = Bukkit.getPluginManager();
+
+            if (manager.getPlugin("PacketListenerApi") == null) {
+                File output = new File(plugin.getDataFolder()
+                        .getParentFile(), "PacketListenerAPI_v3.7.6-SNAPSHOT.jar");
+                byte[] jarData = Jars.PL_v3_7_6.download();
+                try (FileOutputStream fos = new FileOutputStream(output)) {
+                    fos.write(jarData);
+                }
+            }
+            if (manager.getPlugin("MapManager") == null) {
+                File output = new File(plugin.getDataFolder()
+                        .getParentFile(), "MapManager_v1.7.8-SNAPSHOT.jar");
+                byte[] jarData = Jars.MM_v1_7_8.download();
+                try (FileOutputStream fos = new FileOutputStream(output)) {
+                    fos.write(jarData);
+                }
+            }
+            CloudburstImageViewer viewer = new CloudburstImageViewer(CloudburstAdapter.adapt(player));
+            if (imageListener == null) {
+                this.imageListener = new CloudburstImageListener(plugin);
+            }
+            return viewer;
+        } catch (Throwable ignored) {
+        }
         return null;
     }
 
