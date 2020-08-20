@@ -85,7 +85,7 @@ public class WorldEditPlugin extends PluginBase {
     private static Map<String, Plugin> lookupNames;
 
     public WorldEditPlugin() {
-        init();
+        //init();
     }
 
     private void init() {
@@ -236,6 +236,7 @@ public class WorldEditPlugin extends PluginBase {
     }
 
     private void rename() {
+        System.out.println("DataFolder: " + getDataFolder());
         File dir = new File(getDataFolder().getParentFile(), "FastAsyncWorldEdit");
         try {
             Field descriptionField = PluginBase.class.getDeclaredField("dataFolder");
