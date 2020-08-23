@@ -17,7 +17,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-package com.sk89q.bukkit.util;
+package com.sk89q.cloudburst.util;
 
 public class CommandInfo {
 

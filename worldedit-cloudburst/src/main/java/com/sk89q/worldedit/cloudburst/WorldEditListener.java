@@ -77,10 +77,10 @@ public class WorldEditListener implements Listener {
         CommandManager commandManager = plugin.getWorldEdit().getPlatformManager().getPlatformCommandManager().getCommandManager();
         CommandRegistry.get().getCommand(event.getEventName());
 
-        if (commandManager.getCommand(event.getMessage())
+        if (commandManager.getCommand(event.getMessage().substring(1))
                 .filter(command -> !command.getCondition().satisfied(store))
                 .isPresent()) {
-            event.setMessage("");
+            event.setMessage("/RANDOM_COMMAND_THAT_SHOULDNT_BE_REGISTERED");
         }
     }
 

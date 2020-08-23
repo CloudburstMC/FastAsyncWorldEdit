@@ -19,10 +19,7 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.worldedit.world.registry.BiomeRegistry;
-import com.sk89q.worldedit.world.registry.BlockRegistry;
-import com.sk89q.worldedit.world.registry.BundledRegistries;
-import com.sk89q.worldedit.world.registry.EntityRegistry;
+import com.sk89q.worldedit.world.registry.*;
 
 /**
  * World data for the Bukkit platform.
@@ -32,7 +29,7 @@ class CloudburstRegistries extends BundledRegistries {
     private static final CloudburstRegistries INSTANCE = new CloudburstRegistries();
     private final BlockRegistry blockRegistry = new CloudburstBlockRegistry();
     private final BiomeRegistry biomeRegistry = new CloudburstBiomeRegistry();
-    //    private final ItemRegistry itemRegistry = new CloudburstItemRegistry();
+    private final ItemRegistry itemRegistry = new CloudburstItemRegistry();
     private final EntityRegistry entityRegistry = new CloudburstEntityRegistry();
 //    private final BlockCategoryRegistry blockCategoryRegistry = new CloudburstBlockCategoryRegistry();
 //    private final ItemCategoryRegistry itemCategoryRegistry = new CloudburstItemCategoryRegistry();
@@ -53,10 +50,10 @@ class CloudburstRegistries extends BundledRegistries {
         return biomeRegistry;
     }
 
-//    @Override
-//    public ItemRegistry getItemRegistry() {
-//        return itemRegistry;
-//    }
+    @Override
+    public ItemRegistry getItemRegistry() {
+        return itemRegistry;
+    }
 
 //    @Override
 //    public BlockCategoryRegistry getBlockCategoryRegistry() {

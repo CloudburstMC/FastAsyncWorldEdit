@@ -19,8 +19,8 @@
 
 package com.sk89q.worldedit.cloudburst;
 
+import com.google.common.collect.ImmutableList;
 import com.sk89q.worldedit.registry.state.Property;
-import com.sk89q.worldedit.util.formatting.text.Component;
 import com.sk89q.worldedit.world.block.BlockState;
 import com.sk89q.worldedit.world.block.BlockType;
 import com.sk89q.worldedit.world.registry.BlockMaterial;
@@ -30,28 +30,30 @@ import org.cloudburstmc.server.block.BlockStates;
 import org.cloudburstmc.server.registry.BlockRegistry;
 import org.cloudburstmc.server.utils.Identifier;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.OptionalInt;
+import java.util.*;
 
 public class CloudburstBlockRegistry extends BundledBlockRegistry {
 
     private final Map<org.cloudburstmc.server.block.BlockState, CloudburstBlockMaterial> materialMap = new HashMap<>();
 
-    @Override
-    public Component getRichName(BlockType blockType) {
-        return super.getRichName(blockType);
+    static final Set<String> BLOCKS = new HashSet<>();
+
+    static {
+        ImmutableList<org.cloudburstmc.server.block.BlockState> states = BlockRegistry.get().getBlockStates();
+        for (org.cloudburstmc.server.block.BlockState state : states) {
+            BLOCKS.add(state.getType().toString().toLowerCase(Locale.US));
+        }
     }
 
     @Override
     public BlockMaterial getMaterial(BlockType blockType) {
         org.cloudburstmc.server.block.BlockState block = BlockRegistry.get().getBlock(Identifier.fromString(blockType.getId()));
         if (block == null) {
-            return null;
+            WorldEditPlugin.getInstance().getLogger().warn("Unable to find block-type for {}", blockType);
+            return new PassthroughBlockMaterial(null);
         }
         return materialMap.computeIfAbsent(block, material -> new CloudburstBlockMaterial(CloudburstBlockRegistry.super.getMaterial(blockType), block));
     }
-
 
     //TODO
     @Override
@@ -62,6 +64,11 @@ public class CloudburstBlockRegistry extends BundledBlockRegistry {
     @Override
     public OptionalInt getInternalBlockStateId(BlockState state) {
         return OptionalInt.of(BlockRegistry.get().getRuntimeId(CloudburstAdapter.adapt(state)));
+    }
+
+    @Override
+    public Collection<String> values() {
+        return BLOCKS;
     }
 
     public static class CloudburstBlockMaterial extends PassthroughBlockMaterial {

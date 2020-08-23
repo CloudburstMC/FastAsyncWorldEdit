@@ -19,7 +19,7 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.bukkit.util.CommandInspector;
+import com.sk89q.cloudburst.util.CommandInspector;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.extension.platform.Actor;
 import org.cloudburstmc.server.command.Command;

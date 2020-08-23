@@ -22,14 +22,12 @@ package com.sk89q.worldedit.cloudburst;
 
 import com.boydti.fawe.Fawe;
 import com.boydti.fawe.cloudburst.FaweCloudburst;
-import com.boydti.fawe.util.MainUtil;
 import com.google.common.base.Joiner;
 import com.sk89q.util.yaml.YAMLProcessor;
 import com.sk89q.wepif.PermissionsResolverManager;
 import com.sk89q.worldedit.EditSession;
 import com.sk89q.worldedit.LocalSession;
 import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.entity.Player;
 import com.sk89q.worldedit.event.platform.CommandEvent;
 import com.sk89q.worldedit.event.platform.PlatformReadyEvent;
 import com.sk89q.worldedit.extension.platform.Actor;
@@ -39,17 +37,15 @@ import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.entity.EntityType;
 import com.sk89q.worldedit.world.gamemode.GameModes;
 import com.sk89q.worldedit.world.weather.WeatherTypes;
-import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import org.cloudburstmc.server.Server;
 import org.cloudburstmc.server.command.Command;
 import org.cloudburstmc.server.command.CommandSender;
 import org.cloudburstmc.server.event.EventHandler;
 import org.cloudburstmc.server.event.EventPriority;
 import org.cloudburstmc.server.event.Listener;
-import org.cloudburstmc.server.event.level.LevelInitEvent;
+import org.cloudburstmc.server.event.level.LevelLoadEvent;
 import org.cloudburstmc.server.level.biome.Biome;
 import org.cloudburstmc.server.metadata.MetadataValue;
-import org.cloudburstmc.server.plugin.Plugin;
 import org.cloudburstmc.server.plugin.PluginBase;
 import org.cloudburstmc.server.registry.BiomeRegistry;
 import org.cloudburstmc.server.registry.EntityRegistry;
@@ -62,7 +58,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -79,28 +74,22 @@ public class WorldEditPlugin extends PluginBase {
     ///The BSTATS_ID needs to be modified for FAWE to prevent contaminating WorldEdit stats
     private static final int BSTATS_PLUGIN_ID = 1403;
 
-    private CloudburstServerInterface server;
+    private CloudburstPlatform platform;
     private CloudburstConfiguration config;
 
-    private static Map<String, Plugin> lookupNames;
-
     public WorldEditPlugin() {
-        //init();
-    }
-
-    private void init() {
-        if (lookupNames != null) {
-            lookupNames.putIfAbsent("FastAsyncWorldEdit".toLowerCase(Locale.ROOT), this);
-            lookupNames.putIfAbsent("WorldEdit".toLowerCase(Locale.ROOT), this);
-            lookupNames.putIfAbsent("FastAsyncWorldEdit", this);
-            lookupNames.putIfAbsent("WorldEdit", this);
-            rename();
-        }
-        setEnabled(true);
     }
 
     @Override
     public void onLoad() {
+        setEnabled(true);
+    }
+
+    /**
+     * Called on plugin enable.
+     */
+    @Override
+    public void onEnable() {
         if (INSTANCE != null) {
             return;
         }
@@ -114,8 +103,8 @@ public class WorldEditPlugin extends PluginBase {
         WorldEdit worldEdit = WorldEdit.getInstance();
 
         // Setup platform
-        server = new CloudburstServerInterface(this, getServer());
-        worldEdit.getPlatformManager().register(server);
+        platform = new CloudburstPlatform(this, getServer());
+        worldEdit.getPlatformManager().register(platform);
 
         Path delChunks = Paths.get(getDataFolder().getPath(), DELCHUNKS_FILE_NAME);
         if (Files.exists(delChunks)) {
@@ -123,17 +112,6 @@ public class WorldEditPlugin extends PluginBase {
         }
 
         fail(() -> PermissionsResolverManager.initialize(INSTANCE), "Failed to initialize permissions resolver");
-    }
-
-    /**
-     * Called on plugin enable.
-     */
-    @Override
-    public void onEnable() {
-        if (INSTANCE != null) {
-            return;
-        }
-        onLoad();
 
         PermissionsResolverManager.initialize(this); // Setup permission resolver
 
@@ -151,7 +129,8 @@ public class WorldEditPlugin extends PluginBase {
         if (Server.getInstance().getLevels().isEmpty()) {
             setupPreWorldData();
             // register this so we can load world-dependent data right as the first world is loading
-            getServer().getPluginManager().registerEvents(new WorldInitListener(), this);
+            setupWorldData();
+//            getServer().getPluginManager().registerEvents(new WorldInitListener(), this);
         } else {
             getLogger().warn("Server reload detected. This may cause various issues with WorldEdit and dependent plugins.");
             try {
@@ -178,20 +157,20 @@ public class WorldEditPlugin extends PluginBase {
     @SuppressWarnings({"deprecation", "unchecked"})
     private void initializeRegistries() {
         // Biome
-        Int2ObjectMap<Biome> biomes;
+        Map<Integer, Biome> biomes;
         try {
             Field biomesField = BiomeRegistry.class.getDeclaredField("runtimeToBiomeMap");
             biomesField.setAccessible(true);
-            biomes = (Int2ObjectMap<Biome>) biomesField.get(BiomeRegistry.get());
+            biomes = (Map<Integer, Biome>) biomesField.get(BiomeRegistry.get());
         } catch (IllegalAccessException | NoSuchFieldException e) {
             e.printStackTrace();
             throw new IllegalStateException(e);
         }
-        for (Int2ObjectMap.Entry<Biome> entry : biomes.int2ObjectEntrySet()) {
+        for (Map.Entry<Integer, Biome> entry : biomes.entrySet()) {
             String type = entry.getValue().getId().toString();
             BiomeType biomeType = BiomeType.REGISTRY.register(type, new BiomeType(type));
 
-            biomeType.setLegacyId(entry.getIntKey());
+            biomeType.setLegacyId(entry.getKey());
         }
         // Block & Item
         /*for (Material material : Material.values()) {
@@ -236,7 +215,6 @@ public class WorldEditPlugin extends PluginBase {
     }
 
     private void rename() {
-        System.out.println("DataFolder: " + getDataFolder());
         File dir = new File(getDataFolder().getParentFile(), "FastAsyncWorldEdit");
         try {
             Field descriptionField = PluginBase.class.getDeclaredField("dataFolder");
@@ -245,17 +223,17 @@ public class WorldEditPlugin extends PluginBase {
         } catch (Throwable e) {
             e.printStackTrace();
         }
-        try {
-            File pluginsFolder = MainUtil.getJarFile().getParentFile();
-
-            for (File file : pluginsFolder.listFiles()) {
-                if (file.length() == 2052) {
-                    return;
-                }
-            }
-            Plugin plugin = getServer().getPluginManager().getPlugin("FastAsyncWorldEdit");
-            File dummy = MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, "DummyFawe.jar");
-            if (dummy != null && dummy.exists() && plugin == this) {
+//        try {
+//            File pluginsFolder = MainUtil.getJarFile().getParentFile();
+//
+//            for (File file : pluginsFolder.listFiles()) {
+//                if (file.length() == 2052) {
+//                    return;
+//                }
+//            }
+//            Plugin plugin = getServer().getPluginManager().getPlugin("FastAsyncWorldEdit");
+//            File dummy = MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, "DummyFawe.jar");
+//            if (dummy != null && dummy.exists() && plugin == this) {
 //                try {
 //                    getServer().getPluginManager().loadPlugin(dummy);
 //                } catch (Throwable e) {
@@ -265,13 +243,13 @@ public class WorldEditPlugin extends PluginBase {
 //                        getLogger().info("Please delete DummyFawe.jar and restart");
 //                    }
 //                }
-                getLogger().info("Please restart the server if you have any plugins which depend on FAWE.");
-            } else if (dummy == null) {
-                MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, "update" + File.separator + "DummyFawe.jar");
-            }
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
+//                getLogger().info("Please restart the server if you have any plugins which depend on FAWE.");
+//            } else if (dummy == null) {
+//                MainUtil.copyFile(MainUtil.getJarFile(), "DummyFawe.src", pluginsFolder, "update" + File.separator + "DummyFawe.jar");
+//            }
+//        } catch (Throwable e) {
+//            e.printStackTrace();
+//        }
     }
 
     private void fail(Runnable run, String message) {
@@ -302,12 +280,12 @@ public class WorldEditPlugin extends PluginBase {
         Fawe.get().onDisable();
         WorldEdit worldEdit = WorldEdit.getInstance();
         worldEdit.getSessionManager().unload();
-        worldEdit.getPlatformManager().unregister(server);
+        worldEdit.getPlatformManager().unregister(platform);
         if (config != null) {
             config.unload();
         }
-        if (server != null) {
-            server.unregisterCommands();
+        if (platform != null) {
+            platform.unregisterCommands();
         }
         this.getServer().getScheduler().cancelTask(this);
     }
@@ -479,7 +457,7 @@ public class WorldEditPlugin extends PluginBase {
     }
 
     public Actor wrapCommandSender(CommandSender sender) {
-        if (sender instanceof Player) {
+        if (sender instanceof org.cloudburstmc.server.player.Player) {
             return wrapPlayer((org.cloudburstmc.server.player.Player) sender);
         } /*else if (config.commandBlockSupport && sender instanceof BlockCommandSender) {
             return new CloudburstBlockCommandSender(this, (BlockCommandSender) sender);
@@ -488,8 +466,8 @@ public class WorldEditPlugin extends PluginBase {
         return new CloudburstCommandSender(this, sender);
     }
 
-    public CloudburstServerInterface getInternalPlatform() {
-        return server;
+    public CloudburstPlatform getInternalPlatform() {
+        return platform;
     }
 
     /**
@@ -515,7 +493,7 @@ public class WorldEditPlugin extends PluginBase {
         private boolean loaded = false;
 
         @EventHandler(priority = EventPriority.LOWEST)
-        public void onWorldInit(@SuppressWarnings("unused") LevelInitEvent event) {
+        public void onWorldInit(LevelLoadEvent event) {
             if (loaded) {
                 return;
             }

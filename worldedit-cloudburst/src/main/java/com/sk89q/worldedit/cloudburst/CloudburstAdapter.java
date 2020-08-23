@@ -22,6 +22,7 @@ package com.sk89q.worldedit.cloudburst;
 import com.boydti.fawe.beta.IChunkGet;
 import com.boydti.fawe.beta.implementation.packet.ChunkPacket;
 import com.boydti.fawe.cloudburst.adapter.CloudburstGetBlocks;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableBiMap;
 import com.nukkitx.nbt.NbtList;
 import com.nukkitx.nbt.NbtMap;
@@ -426,7 +427,9 @@ public class CloudburstAdapter {
      */
     @Nullable
     public static ItemType asItemType(Identifier identifier) {
-        return ItemType.REGISTRY.get(identifier.toString());
+        ItemType type = ItemType.REGISTRY.get(identifier.toString().toLowerCase());
+        Preconditions.checkNotNull(type, "No type found for %s", identifier);
+        return type;
     }
 
     private static final Int2ObjectMap<BlockState> blockStateCache = new Int2ObjectOpenHashMap<>();
@@ -491,6 +494,7 @@ public class CloudburstAdapter {
     }
 
     public static NbtMap adapt(CompoundTag compoundTag) {
+        if (compoundTag == null) return NbtMap.EMPTY;
         return (NbtMap) adaptTag(compoundTag);
     }
 

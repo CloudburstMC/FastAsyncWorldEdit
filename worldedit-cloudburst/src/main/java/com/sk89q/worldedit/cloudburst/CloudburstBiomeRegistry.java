@@ -19,9 +19,6 @@
 
 package com.sk89q.worldedit.cloudburst;
 
-import com.sk89q.worldedit.util.formatting.text.Component;
-import com.sk89q.worldedit.util.formatting.text.TranslatableComponent;
-import com.sk89q.worldedit.util.translation.TranslationManager;
 import com.sk89q.worldedit.world.biome.BiomeData;
 import com.sk89q.worldedit.world.biome.BiomeType;
 import com.sk89q.worldedit.world.registry.BiomeRegistry;
@@ -35,13 +32,6 @@ import org.jetbrains.annotations.Nullable;
 class CloudburstBiomeRegistry implements BiomeRegistry {
 
     CloudburstBiomeRegistry() {
-    }
-
-    @Override
-    public Component getRichName(BiomeType biomeType) {
-        return TranslatableComponent.of(
-                TranslationManager.makeTranslationKey("biome", biomeType.getId())
-        );
     }
 
     @Deprecated

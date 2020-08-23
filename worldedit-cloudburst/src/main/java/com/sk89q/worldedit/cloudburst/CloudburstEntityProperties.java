@@ -41,19 +41,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 class CloudburstEntityProperties implements EntityProperties {
 
-    private static final boolean HAS_ABSTRACT_VILLAGER;
-
-    static {
-        boolean temp;
-        try {
-            Class.forName("org.bukkit.entity.AbstractVillager");
-            temp = true;
-        } catch (ClassNotFoundException e) {
-            temp = false;
-        }
-        HAS_ABSTRACT_VILLAGER = temp;
-    }
-
     private final Entity entity;
 
     CloudburstEntityProperties(Entity entity) {

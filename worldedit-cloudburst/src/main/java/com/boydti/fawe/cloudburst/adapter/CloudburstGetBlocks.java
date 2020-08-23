@@ -18,7 +18,6 @@ import com.sk89q.worldedit.cloudburst.CloudburstAdapter;
 import com.sk89q.worldedit.internal.Constants;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.world.biome.BiomeType;
-import it.unimi.dsi.fastutil.ints.IntList;
 import org.cloudburstmc.server.block.BlockState;
 import org.cloudburstmc.server.blockentity.BlockEntity;
 import org.cloudburstmc.server.entity.Entity;
@@ -308,7 +307,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                             if (biome != null) {
                                 final Biome cloudBiome = CloudburstAdapter.adapt(biome);
 
-                                for (int y = 0; y < FaweCache.IMP.worldHeight; y++) {
+                                for (int y = 0; y < FaweCache.IMP.WORLD_HEIGHT; y++) {
                                     chunk.setBiome(x >> 2, z >> 2, BiomeRegistry.get().getRuntimeId(cloudBiome));
                                 }
                             }
@@ -532,7 +531,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
             Arrays.fill(data, (char) 1);
             return data;
         }
-        if (data == null || data == FaweCache.IMP.emptyChar4096) {
+        if (data == null || data == FaweCache.IMP.EMPTY_CHAR_4096) {
             data = new char[4096];
             Arrays.fill(data, (char) 1);
         }
@@ -543,23 +542,24 @@ public class CloudburstGetBlocks extends CharGetBlocks {
             try {
                 BlockStorage storage = section.getBlockStorageArray()[0];
                 BitArray array = (BitArray) STORAGE_BIT_ARRAY.get(storage);
-                IntList palette = (IntList) STORAGE_PALETTE.get(storage);
+                @SuppressWarnings("unchecked")
+                List<Integer> palette = (List<Integer>) STORAGE_PALETTE.get(storage);
 
                 int bitsPerEntry = array.getVersion().getId();
                 int num_palette = palette.size();
 
-                char[] paletteToOrdinal = FaweCache.IMP.paletteToBlockChar.get();
+                char[] paletteToOrdinal = FaweCache.IMP.PALETTE_TO_BLOCK_CHAR.get();
                 try {
                     if (num_palette != 1) {
                         for (int i = 0; i < num_palette; i++) {
-                            char ordinal = this.ordinal(palette.getInt(i));
+                            char ordinal = this.ordinal(palette.get(i));
                             paletteToOrdinal[i] = ordinal;
                         }
                         for (int i = 0; i < 4096; i++) {
                             char paletteVal = data[i];
                             char val = paletteToOrdinal[paletteVal];
                             if (val == Character.MAX_VALUE) {
-                                val = this.ordinal(palette.getInt(i));
+                                val = this.ordinal(palette.get(i));
                                 paletteToOrdinal[i] = val;
                             }
                             // Don't read "empty".
@@ -569,7 +569,7 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                             data[i] = val;
                         }
                     } else {
-                        char ordinal = this.ordinal(palette.getInt(0));
+                        char ordinal = this.ordinal(palette.get(0));
                         // Don't read "empty".
                         if (ordinal == 0) {
                             ordinal = 1;
@@ -667,7 +667,8 @@ public class CloudburstGetBlocks extends CharGetBlocks {
                 ChunkSection existing = this.getSections()[i];
                 try {
                     BlockStorage storage = existing.getBlockStorageArray()[0];
-                    IntList palette = (IntList) STORAGE_PALETTE.get(storage);
+                    @SuppressWarnings("unchecked")
+                    List<Integer> palette = (List<Integer>) STORAGE_PALETTE.get(storage);
 
                     if (palette.size() == 1) {
                         //If the cached palette size is 1 then no blocks can have been changed i.e. do not need to update these chunks.

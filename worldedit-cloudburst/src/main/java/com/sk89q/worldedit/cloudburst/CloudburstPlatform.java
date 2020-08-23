@@ -20,8 +20,8 @@
 package com.sk89q.worldedit.cloudburst;
 
 import com.google.common.collect.Sets;
-import com.sk89q.bukkit.util.CommandInfo;
-import com.sk89q.bukkit.util.CommandRegistration;
+import com.sk89q.cloudburst.util.CommandInfo;
+import com.sk89q.cloudburst.util.CommandRegistration;
 import com.sk89q.worldedit.LocalConfiguration;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.command.util.PermissionCondition;
@@ -45,7 +45,7 @@ import java.util.stream.Stream;
 
 import static com.sk89q.worldedit.util.formatting.WorldEditText.reduceToText;
 
-public class CloudburstServerInterface extends AbstractPlatform implements MultiUserPlatform {
+public class CloudburstPlatform extends AbstractPlatform implements MultiUserPlatform {
 
 
     public final Server server;
@@ -54,7 +54,7 @@ public class CloudburstServerInterface extends AbstractPlatform implements Multi
     private final LazyReference<Watchdog> watchdog;
     private boolean hookingEvents;
 
-    public CloudburstServerInterface(WorldEditPlugin plugin, Server server) {
+    public CloudburstPlatform(WorldEditPlugin plugin, Server server) {
         this.plugin = plugin;
         this.server = server;
         this.dynamicCommands = new CommandRegistration(plugin);
@@ -183,7 +183,7 @@ public class CloudburstServerInterface extends AbstractPlatform implements Multi
 
     @Override
     public String getPlatformName() {
-        return "Bukkit-Official";
+        return "Cloudburst-Official";
     }
 
     @Override
@@ -195,7 +195,7 @@ public class CloudburstServerInterface extends AbstractPlatform implements Multi
     public Map<Capability, Preference> getCapabilities() {
         Map<Capability, Preference> capabilities = new EnumMap<>(Capability.class);
         capabilities.put(Capability.CONFIGURATION, Preference.NORMAL);
-        capabilities.put(Capability.WORLDEDIT_CUI, Preference.NORMAL);
+        capabilities.put(Capability.WORLDEDIT_CUI, Preference.PREFER_OTHERS);
         capabilities.put(Capability.GAME_HOOKS, Preference.PREFERRED);
         capabilities.put(Capability.PERMISSIONS, Preference.PREFERRED);
         capabilities.put(Capability.USER_COMMANDS, Preference.PREFERRED);
